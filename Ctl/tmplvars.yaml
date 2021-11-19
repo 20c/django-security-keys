@@ -1,0 +1,11 @@
+project_name: "django-security-keys"
+
+package:
+  repository: https://github.com/fullctl/django-security-keys
+  description: Django webauthn security key integration
+  installable: false
+  documentation: false
+  copyright: 2021
+  license: Apache-2
+  status: 4 - Beta
+  version: 0.1.0

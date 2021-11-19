@@ -1,0 +1,62 @@
+ctl:
+  permissions:
+    - namespace: ctl
+      permission: crud
+
+  plugins:
+
+    - name: changelog
+      type: changelog
+
+
+    # git repo for copying setup for python package
+
+    - name: git_python_template
+      type: git
+      config:
+        repo_url: git@github.com:20c/ctl-tmpl-python
+        branch: main
+
+    # template for copying template assets
+
+    - name: python_template
+      type: template
+      config:
+        # template root directory (path)
+        source: "{{ ctx.cachedir }}/github.com/20c/ctl-tmpl-python/base"
+        # template output directory (path)
+        output: "{{ ctx.home }}/.."
+        walk_dirs:
+          - .
+        vars:
+          - Ctl/tmplvars.yaml
+        ignore:
+          - \.git/
+
+          # ATTENTION: comment out if you dont want github workflows
+          - \.github/
+
+          # ATTENTION: uncomment after first generation as it does
+          # not do incremental merging / updates to the file and simply
+          # overrides it
+          #
+          # pyproject.toml
+
+    # chain plugin for entire template process
+
+    - name: sync_python
+      type: chain
+      config:
+        chain:
+          - stage: git_clone
+            plugin: git_python_template
+            action:
+              name: clone
+
+          - stage: git_pull
+            plugin: git_python_template
+            action:
+              name: pull
+
+          - stage:  python_template
+            plugin: python_template
