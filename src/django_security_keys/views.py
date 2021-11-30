@@ -14,7 +14,13 @@ def convert_to_bool(data):
     if data is None:
         return False
 
-    return data.lower() == "true"
+    if isinstance(data, bool):
+        return data
+
+    if isinstance(data, str):
+        return data.lower() == "true"
+
+    return False
 
 
 @login_required
