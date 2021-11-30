@@ -18,7 +18,10 @@ window.SecurityKeys = {
    * @method init
    */
 
-  init : function() {
+  init : function(config) {
+
+    this.config = config;
+
     this.init_passwordless_login();
     this.init_two_factor();
   },
@@ -222,7 +225,10 @@ window.SecurityKeys = {
     var i, payload = {username: username};
     if(for_login)
       payload.for_login = 1;
-    $.post("/security_keys/request_authentication", payload, (response) => {
+
+    url = this.config.url_request_authentication;
+
+    $.post(url, payload, (response) => {
 
       response.challenge = base64url.decode(response.challenge);
 
@@ -280,7 +286,9 @@ window.SecurityKeys = {
     //
     // request credential registration options from the server
 
-    $.get('/security_keys/request_registration', (response)=> {
+    var url = this.config.url_request_registration;
+
+    $.get(url, (response)=> {
       var challenge_str = SecurityKeys.base64_to_array_buffer(response.challenge);
       response.challenge = challenge_str;
       response.user.id = SecurityKeys.array_buffer_to_uint8(response.user.id);

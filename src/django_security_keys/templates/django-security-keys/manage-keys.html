@@ -1,0 +1,14 @@
+{% extends "django-security-keys/base.html" %}
+
+{% block content %}
+<h3>Your keys</h3>
+<table>
+
+</table>
+
+<form method="POST" action="{% url "django_security_keys:request-registration" %}">
+<h3>Add new key</h3>
+<input type="text" name="name">
+<button type="submit" class="btn-primary">Add new key</button>
+</form>
+{% endblock %}

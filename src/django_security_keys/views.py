@@ -4,6 +4,7 @@ import json
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.http import JsonResponse
+from django.shortcuts import render
 from django.utils.translation import ugettext_lazy as _
 from webauthn import base64url_to_bytes
 
@@ -22,6 +23,9 @@ def convert_to_bool(data):
 
     return False
 
+@login_required
+def manage_keys(request):
+    return render(request, "django-security-keys/manage-keys.html")
 
 @login_required
 def request_registration(request, **kwargs):
