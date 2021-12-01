@@ -3,12 +3,16 @@ import json
 
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.conf import settings
 from django.http import JsonResponse
-from django.shortcuts import render
+from django.shortcuts import render, redirect
+from django.urls import reverse
 from django.utils.translation import ugettext_lazy as _
+from django.contrib.auth import authenticate, login, logout
 from webauthn import base64url_to_bytes
 
 from django_security_keys.models import SecurityKey
+from django_security_keys.forms import RegisterKeyForm, LoginForm
 
 
 def convert_to_bool(data):
@@ -23,9 +27,83 @@ def convert_to_bool(data):
 
     return False
 
+def basic_logout(request):
+
+    """
+    Very basic logout - mostly provided for bootstrap / testing
+    purposes, you should provide your own secure logout view
+    """
+
+    logout(request)
+    return redirect(reverse("login"))
+
+def basic_login(request):
+
+    """
+    Very basic login handler that supports password-less login
+    mostly provided for example / testing purposes, you should
+    likely create your own implementation of this
+    """
+
+    if request.method == "POST":
+
+        # handle login POST
+
+        form = LoginForm(request.POST)
+        if form.is_valid():
+
+            # basic form validation ok (at this point only username requirement
+            # has been validated
+
+            password = form.cleaned_data["password"]
+            username = form.cleaned_data["username"]
+            credential = request.POST.get("credential")
+
+            if credential:
+
+                # credential is set, provide it in the authenticate request
+
+                user = authenticate(request, username=username, u2f_credential=credential)
+            else:
+
+                # no credential, attempt to do a normal login with name and password
+
+                user = authenticate(request, username=username, password=password)
+
+            if user is not None:
+
+                # authentication was successful, proceed to login request and
+                # redirect accordingly
+
+                login(request, user)
+                if request.GET.get("next"):
+                    return redirect(request.GET.get("next"))
+                return redirect(settings.LOGIN_REDIRECT_URL)
+
+            else:
+
+                # authentication failure
+
+                form.add_error("__all__", "Invalid username / password")
+
+        return render(request, "django-security-keys/login.html", {"form": form})
+    else:
+        form = LoginForm()
+
+    return render(request, "django-security-keys/login.html", {"form": form})
+
 @login_required
 def manage_keys(request):
-    return render(request, "django-security-keys/manage-keys.html")
+
+    """
+    Very basic key management view where user is presented with a list
+    of their keys and a form to register new keys.
+    """
+
+    context = {
+        "form": RegisterKeyForm()
+    }
+    return render(request, "django-security-keys/manage-keys.html", context)
 
 @login_required
 def request_registration(request, **kwargs):
@@ -73,6 +151,8 @@ def register_security_key(request, **kwargs):
     - credential(`base64`): registration credential
     - name(`str`): key nick name
     - passwordless_login (`bool`): allow passwordless login
+
+    Returns a JSON response
     """
 
     name = request.POST.get("name", "security-key")
@@ -87,9 +167,47 @@ def register_security_key(request, **kwargs):
         passwordless_login=passwordless_login,
     )
 
+
     return JsonResponse(
         {"status": "ok", "name": security_key.name, "id": security_key.id}
     )
+
+
+@login_required
+@transaction.atomic
+def register_security_key_form(request, **kwargs):
+    """
+    Register a webauthn security key with a static form approach.
+
+    This requires the following POST data:
+
+    - credential(`base64`): registration credential
+    - name(`str`): key nick name
+    - passwordless_login (`string`): "on" if enabled
+
+    This will return a html response
+    """
+
+    name = request.POST.get("name", "security-key")
+    credential = request.POST.get("credential")
+    passwordless_login = convert_to_bool(request.POST.get("passwordless_login", False))
+
+    form = RegisterKeyForm(request.POST)
+
+    if form.is_valid():
+        security_key = SecurityKey.verify_registration(
+            request.user,
+            request.session,
+            form.cleaned_data["credential"],
+            name=form.cleaned_data["name"],
+            passwordless_login=form.cleaned_data["passwordless_login"],
+        )
+        return redirect(reverse("security-keys:manage-keys"))
+    else:
+        context = {
+            "form": form
+        }
+        return render(request, "django-security-keys/manage-keys.html", context)
 
 
 @login_required
@@ -129,8 +247,6 @@ def verify_authentication(request):
             for_login=(request.POST.get("auth_type") == "login"),
         )
     except Exception as exc:
-        # XXX
-        raise
         return JsonResponse({"non_field_errors": exc}, status=403)
 
     return JsonResponse(
@@ -144,14 +260,20 @@ def verify_authentication(request):
 def remove_security_key(request, **kwargs):
     """
     Decommission a security key.
+
+    This requires the following POST data:
+
+    - id (`int`): key id
+
+    The key needs to belong the requesting user.
+
+    Returns a JSON response
     """
 
     user = request.user
-    # XXX should be credential id instead ?
     id = request.POST.get("id")
 
     try:
-        print("checking key", id, "on", user)
         sec_key = request.user.webauthn_security_keys.get(pk=id)
     except SecurityKey.DoesNotExist:
         return JsonResponse({"non_field_errors": [_("Key not found")]}, status=404)
@@ -162,3 +284,22 @@ def remove_security_key(request, **kwargs):
             "status": "ok",
         }
     )
+
+@login_required
+def remove_security_key_form(request, **kwargs):
+
+    """
+    Decommision a security key through a static form approach.
+
+    This requires the following POST data:
+
+    - id (`int`): key id
+
+    The key needs to belong to the requesting user.
+
+    Returns a redirect response to manage-keys
+    """
+
+    remove_security_key(request, **kwargs)
+
+    return redirect(reverse("security-keys:manage-keys"))

@@ -69,7 +69,6 @@ class LoginView(two_factor.views.LoginView):
                     self.storage.reset()
                     self.storage.authenticated_user = user
                     self.storage.data["authentication_time"] = int(time.time())
-                    print("USER SET", user)
                     form = self.get_form(
                         data=self.request.POST, files=self.request.FILES
                     )

@@ -3,12 +3,34 @@
 {% block content %}
 <h3>Your keys</h3>
 <table>
-
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Password-less login</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for key in request.user.webauthn_security_keys.all %}
+    <tr>
+      <td>{{ key.name }}</td>
+      <td>{% if key.passwordless_login %}yes{% else %}no{% endif %}</td>
+      <td>
+        <form method="POST" action="{% url "security-keys:decommission-form" %}">
+          {% csrf_token %}
+          <input type="hidden" name="id" value="{{ key.id }}">
+          <button type="submit">Decommission</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
 </table>
 
-<form method="POST" action="{% url "django_security_keys:request-registration" %}">
+<form method="POST" id="register-key-form" action="{% url "security-keys:register-form" %}">
 <h3>Add new key</h3>
-<input type="text" name="name">
-<button type="submit" class="btn-primary">Add new key</button>
+{% csrf_token %}
+{{ form }}
+<button id="register-key-form-submit" type="submit" class="btn-primary">Add new key</button>
 </form>
 {% endblock %}

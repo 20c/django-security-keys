@@ -24,6 +24,8 @@ window.SecurityKeys = {
 
     this.init_passwordless_login();
     this.init_two_factor();
+    this.init_key_registration();
+
   },
 
   /**
@@ -82,10 +84,10 @@ window.SecurityKeys = {
     var two_factor_login = (login_step.val() == "auth");
 
     if(normal_login || two_factor_login) {
-      var button_next = login_form.find('button[type="submit"].btn-primary');
+      var button_next = login_form.find('button[type="submit"]').filter('.btn-login,.btn-primary');
       var fn_submit = function(ev) {
-        var password = login_form.find("#id_auth-password").val();
-        var username= login_form.find("#id_auth-username").val();
+        var password = login_form.find("#id_auth-password, #id_password").val();
+        var username= login_form.find("#id_auth-username, #id_username").val();
 
         if(password == "" && username != "") {
 
@@ -203,6 +205,35 @@ window.SecurityKeys = {
     );
   },
 
+  init_key_registration: function() {
+    var form = $('#register-key-form');
+    if(!form.length)
+      return;
+
+    var button = form.find('#register-key-form-submit');
+
+    var submit = function(ev) {
+      ev.preventDefault();
+      SecurityKeys.request_registration(
+        (credential) => {
+          form.find($('input[name="credential"]').val(credential));
+          form.submit();
+        },
+        (exc) => {
+          console.log(exc);
+        }
+      );
+      return false;
+    }
+
+    button.click(submit);
+    form.find('input').keydown(function(ev) {
+      if(ev.which == 13)
+        submit(ev);
+    });
+
+  },
+
   /**
    * SecurityKey authentication process
    *
@@ -227,6 +258,8 @@ window.SecurityKeys = {
       payload.for_login = 1;
 
     url = this.config.url_request_authentication;
+
+    payload.csrfmiddlewaretoken = this.config.csrf_token;
 
     $.post(url, payload, (response) => {
 
@@ -295,8 +328,6 @@ window.SecurityKeys = {
       const credential = navigator.credentials.create(
         {publicKey: response}
       ).then((credential) => {
-        console.log("credentials", credential);
-
         var credential_json = JSON.stringify({
           id: credential.id,
           rawId: SecurityKeys.array_buffer_to_base64(credential.rawId),
