@@ -1,4 +1,22 @@
-## django-security-keys
+# Installation
+
+```sh
+pip install django-security-keys
+```
+
+## 2FA requirements
+
+django-security-keys supports two-factor authentication with `django-two-factor`
+
+Install the package if you want to enable 2FA for your site.
+
+```sh
+pip install django-two-factor
+```
+
+## Settings
+
+### django-security-keys
 
 These settings should be added to your django project settings.
 
@@ -8,7 +26,7 @@ These settings should be added to your django project settings.
 
 There are no default values for these as they are crucial for operation.
 
-## django 
+### django 
 
 For password-less login to work `django_security_keys.backends.PasswordlessAuthenticationBackend` needs to be added to `AUTHENTICATION_BACKENDS`
 
@@ -25,8 +43,20 @@ AUTHENTICATION_BACKENDS = (
 )
 ```
 
-## Development notes
+## urls
 
-Currently not many settings for py-webauthn are exposed to the django level and in a lot of cases the default values provided in py-webauthn will be used.
+django-security-keys comes with some very basic views to get you started
 
-This is being worked on and we plan to improve configuration options in the future.
+Since most django installations will use customized or third-party driven login views, the login view that comes with our package should seen as a very basic but functional implementation example.
+
+For a quick setup add the following lines to your urls.py urlpatterns
+
+```py
+import django_security_keys
+
+urlpatterns = [
+    path('login/', django_security_keys.views.basic_login, name="login"),
+    path('logout/', django_security_keys.views.basic_logout, name="logout"),
+    path('security-keys/', include( ('django_security_keys.urls', 'django_security_keys'), namespace="security-keys"))
+]
+```

@@ -9,6 +9,9 @@
 
 Django webauthn security key support
 
+Allows using webauthn for passwordless login and two-factor authentication.
+
+2FA integration requires django-two-factor and is handled by extending a custom django-two-factor device.
 
 ## Changes
 
