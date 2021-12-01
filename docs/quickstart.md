@@ -28,6 +28,14 @@ There are no default values for these as they are crucial for operation.
 
 ### django 
 
+Add `django_security_keys` to your `INSTALLED_APPS`
+
+```py
+INSTALLED_APPS += [
+  "django_security_keys",
+]
+```
+
 For password-less login to work `django_security_keys.backends.PasswordlessAuthenticationBackend` needs to be added to `AUTHENTICATION_BACKENDS`
 
 It also needs to be added as the first authentication backend.
