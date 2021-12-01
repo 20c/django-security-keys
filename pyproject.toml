@@ -24,11 +24,15 @@ packages = [
 python = "^3.7"
 webauthn = "^1"
 
+# requirements for 2FA
+django-two-factor-auth = "^1.13.1"
+
 [tool.poetry.dev-dependencies]
 # testing
 pytest = "^6.0.1"
 pytest-django = "^3.8.0"
 pytest-cov = "*"
+codecov = "*"
 
 # linting
 # bandit = "^1.6.2"

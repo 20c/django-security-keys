@@ -68,3 +68,12 @@ urlpatterns = [
     path('security-keys/', include( ('django_security_keys.urls', 'django_security_keys'), namespace="security-keys"))
 ]
 ```
+
+## Add to custom login template
+
+In order to integration django-security-keys with your custom login view you need to include the following two lines in your template
+
+```
+{% include "django-security-keys/static-includes.html" %}
+{% include "django-security-keys/init.html" %}
+```

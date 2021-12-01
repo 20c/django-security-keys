@@ -210,7 +210,6 @@ def register_security_key_form(request, **kwargs):
         return render(request, "django-security-keys/manage-keys.html", context)
 
 
-@login_required
 @transaction.atomic
 def verify_authentication(request):
 
