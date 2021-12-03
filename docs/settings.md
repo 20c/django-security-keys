@@ -1,4 +1,4 @@
-## django-security-keys
+## django-security-keys REQUIRED 
 
 These settings should be added to your django project settings.
 
@@ -7,6 +7,10 @@ These settings should be added to your django project settings.
 - `WEBAUTHN_RP_NAME`: Descriptive name of your service / website.
 
 There are no default values for these as they are crucial for operation.
+
+## django-security-jeys OPTIONAL
+
+- `WEBAUTHN_ATTESTATION` (default=`"none"`): set this to `"direct"` to collect attestation information. Please note that attestation verification is currently not supported in django-security-keys (see [missing features](/docs/missing-features.md)).
 
 ## django 
 
