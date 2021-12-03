@@ -3,7 +3,6 @@ import json
 import pytest
 from django.test import Client
 from django.urls import reverse
-from webauthn.helpers import base64url_to_bytes
 
 from django_security_keys.models import SecurityKey
 

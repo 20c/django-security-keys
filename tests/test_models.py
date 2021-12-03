@@ -2,8 +2,6 @@ import json
 import secrets
 
 import pytest
-from django.conf import settings
-from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
 
 from django_security_keys.models import SecurityKey, UserHandle
 
