@@ -15,16 +15,13 @@ import secrets
 
 import webauthn
 from django.conf import settings
-from django.db import models, transaction
+from django.db import models
 from django.utils.translation import ugettext_lazy as _
 from django_otp.models import Device, ThrottlingMixin
 from webauthn.helpers import (
     base64url_to_bytes,
     bytes_to_base64url,
-    parse_client_data_json,
-    parse_attestation_object,
 )
-
 from webauthn.helpers.structs import (
     AuthenticationCredential,
     PublicKeyCredentialDescriptor,
@@ -125,7 +122,9 @@ class SecurityKey(models.Model):
     credential_id = models.CharField(max_length=255, unique=True, db_index=True)
     credential_public_key = models.TextField()
     sign_count = models.PositiveIntegerField(default=0)
-    attestation = models.TextField(null=True, blank=True, help_text=_("Attestation information"))
+    attestation = models.TextField(
+        null=True, blank=True, help_text=_("Attestation information")
+    )
 
     type = models.CharField(max_length=64)
     passwordless_login = models.BooleanField(

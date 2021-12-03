@@ -1,11 +1,12 @@
 import json
+
 import pytest
 from django.test import Client
 from django.urls import reverse
-
 from webauthn.helpers import base64url_to_bytes
 
 from django_security_keys.models import SecurityKey
+
 
 @pytest.mark.django_db
 def test_login(user):
@@ -19,6 +20,7 @@ def test_login(user):
 
     response = c.get(reverse("security-keys:manage-keys"))
     assert "Your keys" in response.content.decode("utf-8")
+
 
 @pytest.mark.django_db
 def test_passwordless_login(test_auth_credential):
@@ -34,10 +36,7 @@ def test_passwordless_login(test_auth_credential):
     assert response.status_code == 200
 
     client_session = c.session
-    SecurityKey.set_challenge(
-        client_session,
-        SecurityKey.get_challenge(session)
-    )
+    SecurityKey.set_challenge(client_session, SecurityKey.get_challenge(session))
     client_session.save()
 
     response = c.post(reverse("login"), {"username": user.username, "credential": cred})
@@ -84,12 +83,15 @@ def test_request_authentication(user):
     c = Client()
     c.force_login(user)
 
-    response = c.post(reverse("security-keys:request-authentication"), {"username": user.username})
+    response = c.post(
+        reverse("security-keys:request-authentication"), {"username": user.username}
+    )
 
     content = json.loads(response.content.decode("utf-8"))
 
     assert content
     assert content["challenge"]
+
 
 @pytest.mark.django_db
 def test_register_security_key(test_credential):
@@ -100,17 +102,16 @@ def test_register_security_key(test_credential):
     c.force_login(user)
 
     client_session = c.session
-    SecurityKey.set_challenge(
-        client_session,
-        SecurityKey.get_challenge(session)
-    )
+    SecurityKey.set_challenge(client_session, SecurityKey.get_challenge(session))
     client_session.save()
 
-
-    response = c.post(reverse("security-keys:register"), {
-        "name": "test-key",
-        "credential": cred,
-    })
+    response = c.post(
+        reverse("security-keys:register"),
+        {
+            "name": "test-key",
+            "credential": cred,
+        },
+    )
 
     content = json.loads(response.content.decode("utf-8"))
 
@@ -130,17 +131,16 @@ def test_register_security_key_form(test_credential):
     c.force_login(user)
 
     client_session = c.session
-    SecurityKey.set_challenge(
-        client_session,
-        SecurityKey.get_challenge(session)
-    )
+    SecurityKey.set_challenge(client_session, SecurityKey.get_challenge(session))
     client_session.save()
 
-
-    response = c.post(reverse("security-keys:register-form"), {
-        "name": "test-key",
-        "credential": cred,
-    })
+    response = c.post(
+        reverse("security-keys:register-form"),
+        {
+            "name": "test-key",
+            "credential": cred,
+        },
+    )
 
     assert response.status_code == 302
 
@@ -156,18 +156,17 @@ def test_verify_authentication(test_auth_credential):
     c = Client()
 
     client_session = c.session
-    SecurityKey.set_challenge(
-        client_session,
-        SecurityKey.get_challenge(session)
-    )
+    SecurityKey.set_challenge(client_session, SecurityKey.get_challenge(session))
     client_session.save()
 
-
-    response = c.post(reverse("security-keys:authenticate"), {
-        "username": user.username,
-        "credential": cred,
-        "auth_type": "2fa",
-    })
+    response = c.post(
+        reverse("security-keys:authenticate"),
+        {
+            "username": user.username,
+            "credential": cred,
+            "auth_type": "2fa",
+        },
+    )
 
     print(response.content)
 
@@ -175,6 +174,7 @@ def test_verify_authentication(test_auth_credential):
 
     assert content
     assert content["status"] == "ok"
+
 
 @pytest.mark.django_db
 def test_remove_security_key(security_key):
@@ -184,9 +184,7 @@ def test_remove_security_key(security_key):
     c = Client()
     c.force_login(user)
 
-    response = c.post(reverse("security-keys:decommission"), {
-        "id": key.id
-    })
+    response = c.post(reverse("security-keys:decommission"), {"id": key.id})
 
     assert response.status_code == 200
 
@@ -197,6 +195,7 @@ def test_remove_security_key(security_key):
     assert content
     assert content["status"] == "ok"
 
+
 @pytest.mark.django_db
 def test_remove_security_key_form(security_key):
 
@@ -205,9 +204,7 @@ def test_remove_security_key_form(security_key):
     c = Client()
     c.force_login(user)
 
-    response = c.post(reverse("security-keys:decommission-form"), {
-        "id": key.id
-    })
+    response = c.post(reverse("security-keys:decommission-form"), {"id": key.id})
 
     assert response.status_code == 302
     assert user.webauthn_security_keys.count() == 0

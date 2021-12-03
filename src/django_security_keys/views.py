@@ -1,18 +1,16 @@
-import base64
 import json
 
+from django.conf import settings
+from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.conf import settings
 from django.http import JsonResponse
-from django.shortcuts import render, redirect
+from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.translation import ugettext_lazy as _
-from django.contrib.auth import authenticate, login, logout
-from webauthn import base64url_to_bytes
 
+from django_security_keys.forms import LoginForm, RegisterKeyForm
 from django_security_keys.models import SecurityKey
-from django_security_keys.forms import RegisterKeyForm, LoginForm
 
 
 def convert_to_bool(data):
@@ -27,6 +25,7 @@ def convert_to_bool(data):
 
     return False
 
+
 def basic_logout(request):
 
     """
@@ -36,6 +35,7 @@ def basic_logout(request):
 
     logout(request)
     return redirect(reverse("login"))
+
 
 def basic_login(request):
 
@@ -63,7 +63,9 @@ def basic_login(request):
 
                 # credential is set, provide it in the authenticate request
 
-                user = authenticate(request, username=username, u2f_credential=credential)
+                user = authenticate(
+                    request, username=username, u2f_credential=credential
+                )
             else:
 
                 # no credential, attempt to do a normal login with name and password
@@ -92,6 +94,7 @@ def basic_login(request):
 
     return render(request, "django-security-keys/login.html", {"form": form})
 
+
 @login_required
 def manage_keys(request):
 
@@ -100,10 +103,9 @@ def manage_keys(request):
     of their keys and a form to register new keys.
     """
 
-    context = {
-        "form": RegisterKeyForm()
-    }
+    context = {"form": RegisterKeyForm()}
     return render(request, "django-security-keys/manage-keys.html", context)
+
 
 @login_required
 def request_registration(request, **kwargs):
@@ -167,7 +169,6 @@ def register_security_key(request, **kwargs):
         passwordless_login=passwordless_login,
     )
 
-
     return JsonResponse(
         {"status": "ok", "name": security_key.name, "id": security_key.id}
     )
@@ -188,25 +189,19 @@ def register_security_key_form(request, **kwargs):
     This will return a html response
     """
 
-    name = request.POST.get("name", "security-key")
-    credential = request.POST.get("credential")
-    passwordless_login = convert_to_bool(request.POST.get("passwordless_login", False))
-
     form = RegisterKeyForm(request.POST)
 
     if form.is_valid():
-        security_key = SecurityKey.verify_registration(
+        SecurityKey.verify_registration(
             request.user,
             request.session,
             form.cleaned_data["credential"],
-            name=form.cleaned_data["name"],
+            name=form.cleaned_data["name"] or "security-key",
             passwordless_login=form.cleaned_data["passwordless_login"],
         )
         return redirect(reverse("security-keys:manage-keys"))
     else:
-        context = {
-            "form": form
-        }
+        context = {"form": form}
         return render(request, "django-security-keys/manage-keys.html", context)
 
 
@@ -269,7 +264,6 @@ def remove_security_key(request, **kwargs):
     Returns a JSON response
     """
 
-    user = request.user
     id = request.POST.get("id")
 
     try:
@@ -283,6 +277,7 @@ def remove_security_key(request, **kwargs):
             "status": "ok",
         }
     )
+
 
 @login_required
 def remove_security_key_form(request, **kwargs):

@@ -1,18 +1,11 @@
-import pytest
-import secrets
 import json
+import secrets
 
-from webauthn.helpers import (
-    base64url_to_bytes,
-    bytes_to_base64url,
-)
-
+import pytest
 from django.conf import settings
+from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
 
-from django_security_keys.models import (
-    SecurityKey,
-	UserHandle,
-)
+from django_security_keys.models import SecurityKey, UserHandle
 
 
 @pytest.mark.django_db
@@ -48,6 +41,7 @@ def test_security_key_generate_registration(user, session):
     assert opts["user"]
     assert opts["challenge"]
 
+
 @pytest.mark.django_db
 def test_security_key_verify_registration(test_credential):
 
@@ -62,6 +56,7 @@ def test_security_key_verify_registration(test_credential):
     with pytest.raises(KeyError):
         SecurityKey.get_challenge(session)
 
+
 @pytest.mark.django_db
 def test_security_key_credentials(security_key):
 
@@ -69,6 +64,7 @@ def test_security_key_credentials(security_key):
 
     assert len(SecurityKey.credentials(user.username, session)) == 1
     assert len(SecurityKey.credentials(user.username, session, for_login=True)) == 0
+
 
 @pytest.mark.django_db
 def test_security_key_credentials_passwordless(security_key_passwordless):
@@ -93,6 +89,7 @@ def test_security_key_generate_authentication(user, session):
     assert opts["userVerification"] == "preferred"
     assert opts["timeout"] == 60000
 
+
 @pytest.mark.django_db
 def test_security_key_verify_authentication(test_auth_credential):
 
@@ -110,6 +107,7 @@ def test_security_key_verify_authentication_passwordless_fail(test_auth_credenti
     with pytest.raises(ValueError):
         SecurityKey.verify_authentication(user.username, session, cred, for_login=True)
 
+
 @pytest.mark.django_db
 def test_security_key_verify_authentication_passwordless_success(test_auth_credential):
 
@@ -119,6 +117,6 @@ def test_security_key_verify_authentication_passwordless_success(test_auth_crede
     key.passwordless_login = True
     key.save()
 
-    assert SecurityKey.verify_authentication(user.username, session, cred, for_login=True)
-
-
+    assert SecurityKey.verify_authentication(
+        user.username, session, cred, for_login=True
+    )

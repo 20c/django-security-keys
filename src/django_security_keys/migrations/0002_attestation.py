@@ -6,13 +6,15 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('django_security_keys', '0001_initial'),
+        ("django_security_keys", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='securitykey',
-            name='attestation',
-            field=models.TextField(blank=True, help_text='Attestation information', null=True),
+            model_name="securitykey",
+            name="attestation",
+            field=models.TextField(
+                blank=True, help_text="Attestation information", null=True
+            ),
         ),
     ]
