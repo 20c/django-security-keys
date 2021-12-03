@@ -22,7 +22,9 @@ from webauthn.helpers import (
     base64url_to_bytes,
     bytes_to_base64url,
     parse_client_data_json,
+    parse_attestation_object,
 )
+
 from webauthn.helpers.structs import (
     AuthenticationCredential,
     PublicKeyCredentialDescriptor,
@@ -123,11 +125,15 @@ class SecurityKey(models.Model):
     credential_id = models.CharField(max_length=255, unique=True, db_index=True)
     credential_public_key = models.TextField()
     sign_count = models.PositiveIntegerField(default=0)
+    attestation = models.TextField(null=True, blank=True, help_text=_("Attestation information"))
 
     type = models.CharField(max_length=64)
     passwordless_login = models.BooleanField(
         default=False, help_text=_("User has enabled this key for passwordless login")
     )
+
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
 
     @classmethod
     def set_challenge(cls, session, challenge):
@@ -199,7 +205,7 @@ class SecurityKey(models.Model):
             rp_name=settings.WEBAUTHN_RP_NAME,
             user_id=UserHandle.require_for_user(user).handle,
             user_name=user.username,
-            attestation="none",
+            attestation=getattr(settings, "WEBAUTHN_ATTESTATION", "none"),
         )
 
         cls.set_challenge(session, opts.challenge)
@@ -266,6 +272,7 @@ class SecurityKey(models.Model):
             sign_count=verified_registration.sign_count,
             name=kwargs.get("name", "main"),
             passwordless_login=kwargs.get("passwordless_login", False),
+            attestation=bytes_to_base64url(verified_registration.attestation_object),
             type="security-key",
         )
 
