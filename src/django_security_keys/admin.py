@@ -8,5 +8,8 @@ class SecurityKeyAdmin(admin.ModelAdmin):
 
     list_display = ("user", "name", "sign_count", "created", "updated")
 
+    # user autocomplete
+    autocomplete_fields = ("user",)
+
 
 # Register your models here.
