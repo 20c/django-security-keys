@@ -7,7 +7,7 @@ from django.db import transaction
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext_lazy as _
 
 from django_security_keys.forms import LoginForm, RegisterKeyForm
 from django_security_keys.models import SecurityKey
