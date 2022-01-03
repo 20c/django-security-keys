@@ -10,6 +10,8 @@ __all__ = [
     "user",
     "test_credential",
     "test_auth_credential",
+    "invalid_auth_credential",
+    "invalid_test_credential",
     "security_key",
     "security_key_passwordless",
 ]
@@ -31,10 +33,30 @@ def session():
 def test_credential():
     return _test_credential()
 
+@pytest.fixture
+def invalid_test_credential():
+    user, session, cred = _test_credential
+
+    cred = json.loads(cred)
+    cred["response"]["attestationObject"] = cred["response"]["attestationObject"].replace("o", "A")
+    cred = json.dumps(cred)
+
+    return (user, session, cred)
 
 @pytest.fixture
 def test_auth_credential():
     return _test_auth_credential()
+
+@pytest.fixture
+def invalid_auth_credential():
+    user, session, cred = _test_auth_credential()
+
+    cred = json.loads(cred)
+    cred["response"]["signature"] = cred["response"]["signature"].replace("o", "A")
+    cred = json.dumps(cred)
+
+    return (user, session, cred)
+
 
 
 @pytest.fixture
