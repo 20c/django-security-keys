@@ -3,12 +3,9 @@ import json
 import pytest
 from django.test import Client
 from django.urls import reverse
+from webauthn.helpers.exceptions import InvalidAuthenticationResponse
 
 from django_security_keys.models import SecurityKey
-
-from webauthn.helpers.exceptions import (
-    InvalidAuthenticationResponse
-)
 
 
 @pytest.mark.django_db
@@ -67,10 +64,13 @@ def test_passwordless_login_failure_invalid_signature(invalid_auth_credential):
     client_session.save()
 
     with pytest.raises(InvalidAuthenticationResponse):
-        response = c.post(reverse("login"), {"username": user.username, "credential": cred})
+        response = c.post(
+            reverse("login"), {"username": user.username, "credential": cred}
+        )
 
     response = c.get(reverse("security-keys:manage-keys"))
     assert "Your keys" not in response.content.decode("utf-8")
+
 
 @pytest.mark.django_db
 def test_passwordless_login_failure_key_not_enabled(test_auth_credential):
