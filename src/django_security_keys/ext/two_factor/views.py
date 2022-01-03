@@ -23,6 +23,13 @@ class LoginView(two_factor.views.LoginView):
     def has_security_key_step(self):
         if not self.get_user():
             return False
+
+        # if a valid token was provided in the token step we dont need to
+        # ask for additional 2FA via the security key
+        token_step_data = self.storage.get_step_data("token")
+        if token_step_data:
+            return False
+
         return (
             len(SecurityKey.credentials(self.get_user().username, self.request.session))
             > 0
