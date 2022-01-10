@@ -253,11 +253,11 @@ window.SecurityKeys = {
 
 
   request_authenticate: function(username, for_login, callback, no_credentials, error) {
-    var i, payload = {username: username};
+    var payload = {username: username};
     if(for_login)
       payload.for_login = 1;
 
-    url = this.config.url_request_authentication;
+    var url = this.config.url_request_authentication;
 
     payload.csrfmiddlewaretoken = this.config.csrf_token;
 
@@ -275,7 +275,7 @@ window.SecurityKeys = {
         return;
       }
 
-      assertion = navigator.credentials.get({publicKey: response});
+      var assertion = navigator.credentials.get({publicKey: response});
       assertion.catch((exc) => {
         if(error)
           error(exc);
@@ -325,7 +325,7 @@ window.SecurityKeys = {
       var challenge_str = SecurityKeys.base64_to_array_buffer(response.challenge);
       response.challenge = challenge_str;
       response.user.id = SecurityKeys.array_buffer_to_uint8(response.user.id);
-      const credential = navigator.credentials.create(
+      navigator.credentials.create(
         {publicKey: response}
       ).then((credential) => {
         var credential_json = JSON.stringify({
