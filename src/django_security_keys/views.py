@@ -85,7 +85,7 @@ def basic_login(request):
                         # false positive from lgtm as url has been passed through
                         # django's validation filter and is safe to redirect
 
-                        return redirect(redirect_url) # lgtm[py/url-redirection]
+                        return redirect(redirect_url)  # lgtm[py/url-redirection]
                 return redirect(settings.LOGIN_REDIRECT_URL)
 
             else:
