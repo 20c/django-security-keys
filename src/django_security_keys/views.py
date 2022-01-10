@@ -243,7 +243,7 @@ def verify_authentication(request):
             credential,
             for_login=(request.POST.get("auth_type") == "login"),
         )
-    except Exception as exc:
+    except Exception:
         return JsonResponse(
             {"non_field_errors": "Security authentication failed"}, status=403
         )
