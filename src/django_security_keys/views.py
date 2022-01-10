@@ -82,7 +82,7 @@ def basic_login(request):
                 if request.POST.get("next"):
                     redirect_url = request.POST.get("next")
                     if url_has_allowed_host_and_scheme(redirect_url):
-                        return redirect(request.GET.get("next"))
+                        return redirect(redirect_url)
                 return redirect(settings.LOGIN_REDIRECT_URL)
 
             else:
