@@ -12,6 +12,7 @@ Ref: https://github.com/duo-labs/py_webauthn
 """
 
 import secrets
+
 import webauthn
 from django.conf import settings
 from django.db import models
