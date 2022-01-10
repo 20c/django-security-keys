@@ -8,6 +8,7 @@ from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.translation import gettext_lazy as _
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from django_security_keys.forms import LoginForm, RegisterKeyForm
 from django_security_keys.models import SecurityKey
@@ -78,8 +79,10 @@ def basic_login(request):
                 # redirect accordingly
 
                 login(request, user)
-                if request.GET.get("next"):
-                    return redirect(request.GET.get("next"))
+                if request.POST.get("next"):
+                    redirect_url = request.POST.get("next")
+                    if url_has_allowed_host_and_scheme(redirect_url):
+                        return redirect(request.GET.get("next"))
                 return redirect(settings.LOGIN_REDIRECT_URL)
 
             else:
@@ -241,7 +244,7 @@ def verify_authentication(request):
             for_login=(request.POST.get("auth_type") == "login"),
         )
     except Exception as exc:
-        return JsonResponse({"non_field_errors": exc}, status=403)
+        return JsonResponse({"non_field_errors": "Security authentication failed"}, status=403)
 
     return JsonResponse(
         {

@@ -30,7 +30,6 @@ class SecurityKeyDeviceValidation(forms.Form):
             )
             self.device.authenticated = True
         except Exception:
-            raise
             raise ValidationError(_("Security key authentication failed"))
 
         return self.cleaned_data
