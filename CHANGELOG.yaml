@@ -1,11 +1,13 @@
 1.0.0:
   added:
   - initial release
+1.0.1:
+  fixed:
+  - issue with backend and django test client
 Unreleased:
   added: []
   changed: []
   deprecated: []
-  fixed:
-  - issue with backend and django test client
+  fixed: []
   removed: []
   security: []
