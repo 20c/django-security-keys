@@ -19,6 +19,11 @@ class PasswordlessAuthenticationBackend(ModelBackend):
 
     def authenticate(self, request, username=None, password=None, **kwargs):
 
+        # request can be None, for example in test environments
+
+        if not request:
+            return
+
         # clean up last used passwordless key
 
         try:
