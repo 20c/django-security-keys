@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "django-security-keys"
-version = "1.0.0"
+version = "1.0.1"
 description = "Django webauthn security key integration"
 readme = "README.md"
 repository = "https://github.com/fullctl/django-security-keys"
