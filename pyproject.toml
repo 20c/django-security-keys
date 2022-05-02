@@ -27,6 +27,7 @@ django-two-factor-auth = "^1.13.1"
 
 [tool.poetry.dev-dependencies]
 # testing
+tox = "^3.25.0"
 pytest = "^6.0.1"
 pytest-django = "^3.8.0"
 pytest-cov = "*"
