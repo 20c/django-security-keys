@@ -92,6 +92,14 @@ def test_passwordless_login_failure_key_not_enabled(test_auth_credential):
 
 
 @pytest.mark.django_db
+def test_django_two_factor_auth():
+    c = Client()
+
+    response = c.get(reverse("two-factor-auth:login"))
+    assert response.status_code == 200
+
+
+@pytest.mark.django_db
 def test_manage_keys(security_key):
 
     user, session, key = security_key
