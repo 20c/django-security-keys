@@ -100,8 +100,7 @@ def test_django_two_factor_auth(user):
 
     c = Client()
 
-    response = c.post(reverse("login"), {"username": user.username, "password": "user"})
-    response = c.get(reverse("two-factor-auth:login"))
+    response = c.post(reverse("two-factor-auth:login"), {"auth-username": user.username,"auth-password": "user"})
     print(response.content.decode('utf-8'))
     assert 'data-2fa-method="security-key"' in response.content.decode("utf-8")
 
