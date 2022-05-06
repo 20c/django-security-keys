@@ -92,7 +92,7 @@ def test_passwordless_login_failure_key_not_enabled(test_auth_credential):
 
 
 @pytest.mark.django_db
-def test_django_two_factor_auth(user):
+def test_django_two_factor_auth(test_auth_credential):
     c = Client()
 
     response = c.get(reverse("two-factor-auth:login"))
@@ -100,8 +100,16 @@ def test_django_two_factor_auth(user):
 
     c = Client()
 
-    response = c.post(reverse("two-factor-auth:login"), {"auth-username": user.username,"auth-password": "user"})
-    print(response.content.decode('utf-8'))
+    user, session, cred = test_auth_credential
+
+    response = c.post(
+        reverse("two-factor-auth:login"),
+        {
+            "auth-username": user.username,
+            "auth-password": "user",
+            "login_view-current_step": "auth",
+        },
+    )
     assert 'data-2fa-method="security-key"' in response.content.decode("utf-8")
 
 

@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     "django_otp",
     "django_otp.plugins.otp_static",
     "django_otp.plugins.otp_totp",
+    "django_otp.plugins.otp_email",
     "two_factor",
 ]
 
@@ -64,7 +65,7 @@ LOGIN_URL = "two_factor:login"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / 'project/templates'],
+        "DIRS": [BASE_DIR / "project/templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
