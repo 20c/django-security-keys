@@ -25,9 +25,6 @@ webauthn = "^1"
 # requirements for 2FA
 django-two-factor-auth = "^1.13.1"
 phonenumbers = "^8.12.47"
-tld = "^0.12.6"
-django-countries = "^7.3.2"
-django-grainy = "^1.9.1"
 
 [tool.poetry.dev-dependencies]
 # testing
