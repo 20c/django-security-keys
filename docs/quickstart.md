@@ -102,7 +102,8 @@ MIDDLEWARE += [
   "django_otp.middleware.OTPMiddleware",
 ]
 ```
-Override templates.
+
+Override templates by copying the files into the project and specifying the directory in the `DIRS`. For an example of templates being overridden take a look at the `tests/project/templates` directory in the GitHub. 
 ```py
 TEMPLATES += [
     {
