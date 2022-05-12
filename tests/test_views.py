@@ -114,6 +114,28 @@ def test_django_two_factor_auth(test_auth_credential):
 
 
 @pytest.mark.django_db
+def test_django_two_factor_auth_passwordless_login(test_auth_credential):
+
+    user, session, cred = test_auth_credential
+
+    key = user.webauthn_security_keys.first()
+    key.passwordless_login = True
+    key.save()
+
+    c = Client()
+
+    client_session = c.session
+    SecurityKey.set_challenge(client_session, SecurityKey.get_challenge(session))
+    client_session.save()
+
+    response = c.post(
+        reverse("two-factor-auth:login"),
+        {"auth-username": user.username, "credential": cred},
+    )
+    assert response.status_code == 302
+
+
+@pytest.mark.django_db
 def test_manage_keys(security_key):
 
     user, session, key = security_key
