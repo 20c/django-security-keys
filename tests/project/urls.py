@@ -14,11 +14,20 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import include, path, re_path
+from two_factor.urls import urlpatterns as tf_urls
 
 import django_security_keys.views
+from django_security_keys.ext.two_factor.views import LoginView
+
+tf_urls[0][0] = re_path(
+    route=r"^account/login/$",
+    view=LoginView.as_view(),
+    name="login",
+)
 
 urlpatterns = [
+    path("two-factor-auth/", include(tf_urls, namespace="two-factor-auth")),
     path("admin/", admin.site.urls),
     path("login/", django_security_keys.views.basic_login, name="login"),
     path("logout/", django_security_keys.views.basic_logout, name="logout"),

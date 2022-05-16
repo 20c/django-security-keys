@@ -345,7 +345,6 @@ window.SecurityKeys = {
         callback(credential_json, credential, response);
 
       }).catch( (exc) => {
-        container.editable("loading-shim", "hide");
         if(error)
           error(exc);
         console.error(exc);
