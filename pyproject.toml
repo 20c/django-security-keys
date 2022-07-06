@@ -37,6 +37,8 @@ pytest-cov = "*"
 
 # linting
 # bandit = ">=1.6.2"
+tox = ">=3"
+tox-gh-actions = ">=2"
 black = ">=20"
 isort = ">=5.7"
 flake8 = ">=3.8"
