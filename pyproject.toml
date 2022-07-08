@@ -29,6 +29,8 @@ phonenumbers = "^8.12.47"
 
 [tool.poetry.dev-dependencies]
 # testing
+tox = ">=3"
+tox-gh-actions = ">=2"
 codecov = ">=2"
 coverage = ">=5"
 pytest = ">=6"
@@ -36,9 +38,6 @@ pytest-django = ">=3.8"
 pytest-cov = "*"
 
 # linting
-# bandit = ">=1.6.2"
-tox = ">=3"
-tox-gh-actions = ">=2"
 black = ">=20"
 isort = ">=5.7"
 flake8 = ">=3.8"
