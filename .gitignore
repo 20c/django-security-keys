@@ -7,6 +7,12 @@
 *.sqlite3
 *.sql
 *.egg-info
+release.sh
+.cache
+.coverage
+.tox
+coverage.xml
+.vscode
 .pytest-cache
 Ctl/.state/
 Ctl/dev/.env
