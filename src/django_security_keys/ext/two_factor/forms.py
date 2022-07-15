@@ -1,5 +1,4 @@
-from types import NoneType
-from typing import Any
+from __future__ import annotations
 
 import django.forms as forms
 from django.core.exceptions import ValidationError
@@ -16,8 +15,8 @@ class SecurityKeyDeviceValidation(forms.Form):
 
     def __init__(
         self,
-        request: WSGIRequest | NoneType = None,
-        device: Any | NoneType = None,
+        request: WSGIRequest | None = None,
+        device: Any | None = None,
         *args: Any,
         **kwargs: Any
     ) -> None:

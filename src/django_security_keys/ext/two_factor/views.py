@@ -1,12 +1,11 @@
+from __future__ import annotations
 import time
-from types import NoneType
-from typing import Any, Dict
 
 import two_factor.views
 from django.contrib.auth import authenticate
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.handlers.wsgi import WSGIRequest
-from django.http.response import HttpResponseRedirect
+from django.http.response import HttpResponse, HttpResponseRedirect
 from django.template.response import TemplateResponse
 from django.views.generic import FormView
 
@@ -16,7 +15,7 @@ from django_security_keys.models import SecurityKey, SecurityKeyDevice
 
 
 class DisableView(two_factor.views.DisableView):
-    def dispatch(self, *args, **kwargs):
+    def dispatch(self, *args: Any, **kwargs: Any) -> HttpResponse:
         self.success_url = "/"
         return FormView.dispatch(self, *args, **kwargs)
 
@@ -59,7 +58,7 @@ class LoginView(two_factor.views.LoginView):
 
     def attempt_passwordless_auth(
         self, request: WSGIRequest, **kwargs: Any
-    ) -> HttpResponseRedirect | NoneType:
+    ) -> HttpResponseRedirect | None:
 
         """
         Prepares and attempts a passwordless authentication
@@ -143,7 +142,7 @@ class LoginView(two_factor.views.LoginView):
 
         return device
 
-    def get_device(self, step: str | NoneType = None) -> SecurityKeyDevice:
+    def get_device(self, step: str | None = None) -> SecurityKeyDevice:
         """
         Override this to can enable EmailDevice as a
         challenge device for one time passwords.

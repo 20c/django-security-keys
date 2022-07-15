@@ -6,7 +6,7 @@ It is important that it comes before any other authentication
 backends in the AUTHENTICATION_BACKENDS setting.
 """
 
-from types import NoneType
+from __future__ import annotations
 from typing import Any
 
 from django.contrib.auth.backends import ModelBackend
@@ -25,10 +25,10 @@ class PasswordlessAuthenticationBackend(ModelBackend):
     def authenticate(
         self,
         request: WSGIRequest,
-        username: str = None,
-        password: str | NoneType = None,
+        username: str | None = None,
+        password: str | None = None,
         **kwargs: Any
-    ) -> User | NoneType:
+    ) -> User | None:
 
         # request can be None, for example in test environments
 

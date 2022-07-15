@@ -1,5 +1,5 @@
+from __future__ import annotations
 import json
-from typing import Any
 
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
