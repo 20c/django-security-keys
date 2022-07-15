@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import django.forms as forms
 from django.core.exceptions import ValidationError
 from django.core.handlers.wsgi import WSGIRequest
@@ -18,7 +20,7 @@ class SecurityKeyDeviceValidation(forms.Form):
         request: WSGIRequest | None = None,
         device: Any | None = None,
         *args: Any,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         self.request = request
         self.device = device

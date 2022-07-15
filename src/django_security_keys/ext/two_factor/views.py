@@ -1,5 +1,7 @@
 from __future__ import annotations
+
 import time
+from typing import Any
 
 import two_factor.views
 from django.contrib.auth import authenticate
@@ -101,7 +103,7 @@ class LoginView(two_factor.views.LoginView):
 
     def get_context_data(
         self, form: AuthenticationForm | SecurityKeyDeviceValidation, **kwargs: Any
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         If post request was rate limited the rate limit message
         needs to be communicated via the template context.

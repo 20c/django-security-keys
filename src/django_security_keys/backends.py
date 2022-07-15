@@ -7,6 +7,7 @@ backends in the AUTHENTICATION_BACKENDS setting.
 """
 
 from __future__ import annotations
+
 from typing import Any
 
 from django.contrib.auth.backends import ModelBackend
@@ -27,7 +28,7 @@ class PasswordlessAuthenticationBackend(ModelBackend):
         request: WSGIRequest,
         username: str | None = None,
         password: str | None = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> User | None:
 
         # request can be None, for example in test environments
