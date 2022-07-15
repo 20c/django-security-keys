@@ -6,7 +6,12 @@ It is important that it comes before any other authentication
 backends in the AUTHENTICATION_BACKENDS setting.
 """
 
+from types import NoneType
+from typing import Any
+
 from django.contrib.auth.backends import ModelBackend
+from django.contrib.auth.models import User
+from django.core.handlers.wsgi import WSGIRequest
 
 from django_security_keys.models import SecurityKey
 
@@ -17,7 +22,13 @@ class PasswordlessAuthenticationBackend(ModelBackend):
     Password-less authentication through webauthn
     """
 
-    def authenticate(self, request, username=None, password=None, **kwargs):
+    def authenticate(
+        self,
+        request: WSGIRequest,
+        username: str = None,
+        password: str | NoneType = None,
+        **kwargs: Any
+    ) -> User | NoneType:
 
         # request can be None, for example in test environments
 

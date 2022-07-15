@@ -1,5 +1,9 @@
+from types import NoneType
+from typing import Any
+
 import django.forms as forms
 from django.core.exceptions import ValidationError
+from django.core.handlers.wsgi import WSGIRequest
 from django.utils.translation import gettext as _
 
 from django_security_keys.models import SecurityKey
@@ -10,7 +14,13 @@ class SecurityKeyDeviceValidation(forms.Form):
     credential = forms.CharField(widget=forms.HiddenInput())
     credential.widget.attrs.update({"type": "hidden"})
 
-    def __init__(self, request=None, device=None, *args, **kwargs):
+    def __init__(
+        self,
+        request: WSGIRequest | NoneType = None,
+        device: Any | NoneType = None,
+        *args: Any,
+        **kwargs: Any
+    ) -> None:
         self.request = request
         self.device = device
         super().__init__(*args, **kwargs)
