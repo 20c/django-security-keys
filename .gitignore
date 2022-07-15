@@ -11,3 +11,7 @@
 Ctl/.state/
 Ctl/dev/.env
 build/
+.coverage
+.tox
+.vscode
+coverage.xml
