@@ -11,5 +11,7 @@ class SecurityKeyAdmin(admin.ModelAdmin):
     # user autocomplete
     autocomplete_fields = ("user",)
 
+    search_fields = ("user__username", "name")
+
 
 # Register your models here.
