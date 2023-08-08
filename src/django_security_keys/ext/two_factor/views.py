@@ -15,7 +15,6 @@ class DisableView(two_factor.views.DisableView):
 
 
 class LoginView(two_factor.views.LoginView):
-
     form_list = two_factor.views.LoginView.form_list + (
         ("security-key", forms.SecurityKeyDeviceValidation),
     )
@@ -49,7 +48,6 @@ class LoginView(two_factor.views.LoginView):
         return super().post(*args, **kwargs)
 
     def attempt_passwordless_auth(self, request, **kwargs):
-
         """
         Prepares and attempts a passwordless authentication
         using a security key credential.
@@ -62,13 +60,11 @@ class LoginView(two_factor.views.LoginView):
         """
 
         if self.steps.current == "auth":
-
             credential = request.POST.get("credential")
             username = request.POST.get("auth-username")
 
             # support password-less login using webauthn
             if username and credential:
-
                 try:
                     user = authenticate(
                         request, username=username, u2f_credential=credential
@@ -85,7 +81,6 @@ class LoginView(two_factor.views.LoginView):
                     return self.render_next_step(form)
 
                 except Exception as exc:
-
                     self.passwordless_error = f"{exc}"
                     return self.render_goto_step("auth")
 
@@ -109,7 +104,6 @@ class LoginView(two_factor.views.LoginView):
         return context
 
     def get_security_key_device(self):
-
         """
         Will return a device object representing a webauthn
         choice if the user has any webauthn devices set up
@@ -139,7 +133,6 @@ class LoginView(two_factor.views.LoginView):
         if not self.device_cache:
             challenge_device_id = self.request.POST.get("challenge_device", None)
             if challenge_device_id:
-
                 # security key device
                 device = self.get_security_key_device()
                 if device and device.persistent_id == challenge_device_id:

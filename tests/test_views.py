@@ -10,7 +10,6 @@ from django_security_keys.models import SecurityKey
 
 @pytest.mark.django_db
 def test_login(user):
-
     c = Client()
     response = c.get(reverse("login"))
     assert response.status_code == 200
@@ -24,7 +23,6 @@ def test_login(user):
 
 @pytest.mark.django_db
 def test_passwordless_login(test_auth_credential):
-
     user, session, cred = test_auth_credential
 
     key = user.webauthn_security_keys.first()
@@ -48,7 +46,6 @@ def test_passwordless_login(test_auth_credential):
 
 @pytest.mark.django_db
 def test_passwordless_login_failure_invalid_signature(invalid_auth_credential):
-
     user, session, cred = invalid_auth_credential
 
     key = user.webauthn_security_keys.first()
@@ -74,7 +71,6 @@ def test_passwordless_login_failure_invalid_signature(invalid_auth_credential):
 
 @pytest.mark.django_db
 def test_passwordless_login_failure_key_not_enabled(test_auth_credential):
-
     user, session, cred = test_auth_credential
 
     c = Client()
@@ -115,7 +111,6 @@ def test_django_two_factor_auth(test_auth_credential):
 
 @pytest.mark.django_db
 def test_django_two_factor_auth_passwordless_login(test_auth_credential):
-
     user, session, cred = test_auth_credential
 
     key = user.webauthn_security_keys.first()
@@ -137,7 +132,6 @@ def test_django_two_factor_auth_passwordless_login(test_auth_credential):
 
 @pytest.mark.django_db
 def test_manage_keys(security_key):
-
     user, session, key = security_key
 
     c = Client()
@@ -154,7 +148,6 @@ def test_manage_keys(security_key):
 
 @pytest.mark.django_db
 def test_request_registration(user):
-
     c = Client()
     c.force_login(user)
 
@@ -168,7 +161,6 @@ def test_request_registration(user):
 
 @pytest.mark.django_db
 def test_request_authentication(user):
-
     c = Client()
     c.force_login(user)
 
@@ -184,7 +176,6 @@ def test_request_authentication(user):
 
 @pytest.mark.django_db
 def test_register_security_key(test_credential):
-
     user, session, cred = test_credential
 
     c = Client()
@@ -213,7 +204,6 @@ def test_register_security_key(test_credential):
 
 @pytest.mark.django_db
 def test_register_security_key_form(test_credential):
-
     user, session, cred = test_credential
 
     c = Client()
@@ -239,7 +229,6 @@ def test_register_security_key_form(test_credential):
 
 @pytest.mark.django_db
 def test_verify_authentication(test_auth_credential):
-
     user, session, cred = test_auth_credential
 
     c = Client()
@@ -267,7 +256,6 @@ def test_verify_authentication(test_auth_credential):
 
 @pytest.mark.django_db
 def test_remove_security_key(security_key):
-
     user, session, key = security_key
 
     c = Client()
@@ -287,7 +275,6 @@ def test_remove_security_key(security_key):
 
 @pytest.mark.django_db
 def test_remove_security_key_form(security_key):
-
     user, session, key = security_key
 
     c = Client()

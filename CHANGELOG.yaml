@@ -5,9 +5,12 @@
   fixed:
   - issue with backend and django test client
 Unreleased:
-  added: []
+  added:
+  - python 3.10 support
+  - python 3.11 support
+  - django 4.2 support
   changed: []
   deprecated: []
   fixed: []
-  removed: []
+  removed:
   security: []

@@ -7,7 +7,6 @@ from django.utils.timezone import utc
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("django_security_keys", "0002_attestation"),
     ]
