@@ -61,7 +61,6 @@ class UserHandle(models.Model):
 
     @classmethod
     def require_for_user(cls, user):
-
         """
         Requires a user handle for the user, will create it if it does not exist
 
@@ -148,7 +147,6 @@ class SecurityKey(models.Model):
 
     @classmethod
     def get_challenge(cls, session):
-
         """
         Retrives the webauthn challenge for the specified session
 
@@ -165,7 +163,6 @@ class SecurityKey(models.Model):
 
     @classmethod
     def clear_challenge(cls, session):
-
         """
         Removes the webauthn challenge from the specified session
 
@@ -181,7 +178,6 @@ class SecurityKey(models.Model):
 
     @classmethod
     def generate_registration(cls, user, session):
-
         """
         Generate key registration options to be passed to
         navigator.credentials.create.
@@ -210,7 +206,6 @@ class SecurityKey(models.Model):
 
     @classmethod
     def verify_registration(cls, user, session, raw_credential, **kwargs):
-
         """
         Verifies key registration and creates the SecurityKey instance
         on successful validation.
@@ -295,7 +290,6 @@ class SecurityKey(models.Model):
 
     @classmethod
     def credentials(cls, username, session, for_login=False):
-
         """
         Returns a list of credentials for the specified username
 
@@ -338,7 +332,6 @@ class SecurityKey(models.Model):
 
     @classmethod
     def generate_authentication(cls, username, session, for_login=False):
-
         """
         Generates webauthn authentication options to be passed to
         `navagitor.credentials.get`
@@ -366,7 +359,6 @@ class SecurityKey(models.Model):
 
     @classmethod
     def verify_authentication(cls, username, session, raw_credential, for_login=False):
-
         """
         Verify the webauthn authentication
 

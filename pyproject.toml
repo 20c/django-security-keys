@@ -8,10 +8,12 @@ authors = [ "20C <code@20c.com>",]
 license = "Apache-2"
 classifiers = [
   "Topic :: Software Development", 
-  "Development Status :: 4 - Beta",
+  "Development Status :: 5 - Production/Stable",
   "License :: OSI Approved :: Apache Software License", 
   "Programming Language :: Python :: 3.8", 
   "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
 ]
 
 packages = [
@@ -28,31 +30,32 @@ phonenumbers = "^8.12.47"
 
 [tool.poetry.dev-dependencies]
 # testing
-tox = "^3.25.0"
-pytest = "^6.0.1"
-pytest-django = "^3.8.0"
+pytest = ">=6.0.1"
+pytest-django = ">=3.8.0"
 pytest-cov = "*"
-codecov = "*"
+pytest-pythonpath = "*"
+tox = ">=3.24"
+tox-gh-actions = ">=2.9.1"
 
 # linting
-# bandit = "^1.6.2"
 black = { version = ">=20", allow-prereleases = true }
 isort = "^5.7.0"
 flake8 = "^3.8.4"
-mypy = "^0.812"
+mypy = ">=0.950"
 pre-commit = "^2.13"
 pyupgrade = "^2.19.4"
 
-# docs
-markdown = "*"
-markdown-include = ">=0.5,<1"
-mkdocs = "^1"
-
 # ctl
 ctl = "^1"
-jinja2 = "^2.11.2"
+jinja2 = "^3.1.2"
 tmpl = "^1"
 twine = "^3.3.0"
+
+# docs
+markdown-include = ">=0.5"
+mkdocs = "^1.2.3"
+pymdgen = "^1.0.0"
+
 
 [tool.poetry.plugins."markdown.extensions"]
 pymdgen = "pymdgen.md:Extension"
