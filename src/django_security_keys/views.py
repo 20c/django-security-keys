@@ -28,7 +28,6 @@ def convert_to_bool(data):
 
 
 def basic_logout(request):
-
     """
     Very basic logout - mostly provided for bootstrap / testing
     purposes, you should provide your own secure logout view
@@ -39,7 +38,6 @@ def basic_logout(request):
 
 
 def basic_login(request):
-
     """
     Very basic login handler that supports password-less login
     mostly provided for example / testing purposes, you should
@@ -47,12 +45,10 @@ def basic_login(request):
     """
 
     if request.method == "POST":
-
         # handle login POST
 
         form = LoginForm(request.POST)
         if form.is_valid():
-
             # basic form validation ok (at this point only username requirement
             # has been validated
 
@@ -61,20 +57,17 @@ def basic_login(request):
             credential = request.POST.get("credential")
 
             if credential:
-
                 # credential is set, provide it in the authenticate request
 
                 user = authenticate(
                     request, username=username, u2f_credential=credential
                 )
             else:
-
                 # no credential, attempt to do a normal login with name and password
 
                 user = authenticate(request, username=username, password=password)
 
             if user is not None:
-
                 # authentication was successful, proceed to login request and
                 # redirect accordingly
 
@@ -89,7 +82,6 @@ def basic_login(request):
                 return redirect(settings.LOGIN_REDIRECT_URL)
 
             else:
-
                 # authentication failure
 
                 form.add_error("__all__", "Invalid username / password")
@@ -103,7 +95,6 @@ def basic_login(request):
 
 @login_required
 def manage_keys(request):
-
     """
     Very basic key management view where user is presented with a list
     of their keys and a form to register new keys.
@@ -213,7 +204,6 @@ def register_security_key_form(request, **kwargs):
 
 @transaction.atomic
 def verify_authentication(request):
-
     """
     Verify the authentication attempt.
 
@@ -289,7 +279,6 @@ def remove_security_key(request, **kwargs):
 
 @login_required
 def remove_security_key_form(request, **kwargs):
-
     """
     Decommision a security key through a static form approach.
 
