@@ -1,16 +1,16 @@
-1.0.0:
+Unreleased:
   added:
-  - initial release
+  - python3.10 support
+  - python3.11 support
+  - django4.2 support
+  fixed: []
+  changed: []
+  deprecated: []
+  removed: []
+  security: []
 1.0.1:
   fixed:
   - issue with backend and django test client
-Unreleased:
+1.0.0:
   added:
-  - python 3.10 support
-  - python 3.11 support
-  - django 4.2 support
-  changed: []
-  deprecated: []
-  fixed: []
-  removed:
-  security: []
+  - initial release

@@ -2,6 +2,10 @@
 
 
 ## Unreleased
+### Added
+- python3.10 support
+- python3.11 support
+- django4.2 support
 
 
 ## 1.0.1
