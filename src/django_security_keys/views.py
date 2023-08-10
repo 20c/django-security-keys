@@ -52,12 +52,10 @@ def basic_login(request: WSGIRequest) -> HttpResponse | HttpResponseRedirect:
     """
 
     if request.method == "POST":
-
         # handle login POST
 
         form = LoginForm(request.POST)
         if form.is_valid():
-
             # basic form validation ok (at this point only username requirement
             # has been validated
 
@@ -66,20 +64,17 @@ def basic_login(request: WSGIRequest) -> HttpResponse | HttpResponseRedirect:
             credential = request.POST.get("credential")
 
             if credential:
-
                 # credential is set, provide it in the authenticate request
 
                 user = authenticate(
                     request, username=username, u2f_credential=credential
                 )
             else:
-
                 # no credential, attempt to do a normal login with name and password
 
                 user = authenticate(request, username=username, password=password)
 
             if user is not None:
-
                 # authentication was successful, proceed to login request and
                 # redirect accordingly
 
@@ -94,7 +89,6 @@ def basic_login(request: WSGIRequest) -> HttpResponse | HttpResponseRedirect:
                 return redirect(settings.LOGIN_REDIRECT_URL)
 
             else:
-
                 # authentication failure
 
                 form.add_error("__all__", "Invalid username / password")

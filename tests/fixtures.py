@@ -74,7 +74,6 @@ def security_key_passwordless():
 
 
 def _test_credential():
-
     from django_security_keys.models import SecurityKey, UserHandle
 
     user = get_user_model().objects.create_user("bob", password="user")
@@ -113,7 +112,6 @@ def _test_credential():
 
 
 def _test_auth_credential():
-
     from django_security_keys.models import SecurityKey
 
     user, session, key = _security_key()
@@ -154,7 +152,6 @@ def _test_auth_credential():
 
 
 def _security_key(passwordless_login=False):
-
     from django_security_keys.models import SecurityKey
 
     user, session, cred = _test_credential()

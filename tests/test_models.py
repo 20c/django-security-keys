@@ -8,14 +8,12 @@ from django_security_keys.models import SecurityKey, UserHandle
 
 @pytest.mark.django_db
 def test_user_handle_require_for_user(user):
-
     UserHandle.require_for_user(user)
     assert user.webauthn_user_handle
 
 
 @pytest.mark.django_db
 def test_security_key_challenge(user, session):
-
     SecurityKey.set_challenge(session, secrets.token_bytes(16))
 
     assert session.get("webauthn_challenge")
@@ -29,7 +27,6 @@ def test_security_key_challenge(user, session):
 
 @pytest.mark.django_db
 def test_security_key_generate_registration(user, session):
-
     opts = SecurityKey.generate_registration(user, session)
     assert opts
 
@@ -42,7 +39,6 @@ def test_security_key_generate_registration(user, session):
 
 @pytest.mark.django_db
 def test_security_key_verify_registration(test_credential):
-
     user, session, credential = test_credential
 
     key = SecurityKey.verify_registration(user, session, credential)
@@ -57,7 +53,6 @@ def test_security_key_verify_registration(test_credential):
 
 @pytest.mark.django_db
 def test_security_key_credentials(security_key):
-
     user, session, key = security_key
 
     assert len(SecurityKey.credentials(user.username, session)) == 1
@@ -66,7 +61,6 @@ def test_security_key_credentials(security_key):
 
 @pytest.mark.django_db
 def test_security_key_credentials_passwordless(security_key_passwordless):
-
     user, session, key = security_key_passwordless
 
     assert len(SecurityKey.credentials(user.username, session)) == 1
@@ -75,7 +69,6 @@ def test_security_key_credentials_passwordless(security_key_passwordless):
 
 @pytest.mark.django_db
 def test_security_key_generate_authentication(user, session):
-
     opts = SecurityKey.generate_authentication(user, session)
 
     assert opts
@@ -90,7 +83,6 @@ def test_security_key_generate_authentication(user, session):
 
 @pytest.mark.django_db
 def test_security_key_verify_authentication(test_auth_credential):
-
     user, session, cred = test_auth_credential
 
     key = SecurityKey.verify_authentication(user.username, session, cred)
@@ -99,7 +91,6 @@ def test_security_key_verify_authentication(test_auth_credential):
 
 @pytest.mark.django_db
 def test_security_key_verify_authentication_passwordless_fail(test_auth_credential):
-
     user, session, cred = test_auth_credential
 
     with pytest.raises(ValueError):
@@ -108,7 +99,6 @@ def test_security_key_verify_authentication_passwordless_fail(test_auth_credenti
 
 @pytest.mark.django_db
 def test_security_key_verify_authentication_passwordless_success(test_auth_credential):
-
     user, session, cred = test_auth_credential
 
     key = user.webauthn_security_keys.first()
