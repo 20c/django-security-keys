@@ -30,7 +30,6 @@ class PasswordlessAuthenticationBackend(ModelBackend):
         password: str | None = None,
         **kwargs: Any,
     ) -> User | None:
-
         # request can be None, for example in test environments
 
         if not request:

@@ -67,7 +67,6 @@ class UserHandle(models.Model):
 
     @classmethod
     def require_for_user(cls, user: User | SimpleLazyObject) -> UserHandle:
-
         """
         Requires a user handle for the user, will create it if it does not exist
 
@@ -154,7 +153,6 @@ class SecurityKey(models.Model):
 
     @classmethod
     def get_challenge(cls, session: SessionStore) -> bytes:
-
         """
         Retrives the webauthn challenge for the specified session
 
@@ -171,7 +169,6 @@ class SecurityKey(models.Model):
 
     @classmethod
     def clear_challenge(cls, session: SessionStore) -> None:
-
         """
         Removes the webauthn challenge from the specified session
 
@@ -187,7 +184,6 @@ class SecurityKey(models.Model):
 
     @classmethod
     def generate_registration(cls, user: User, session: SessionStore) -> str:
-
         """
         Generate key registration options to be passed to
         navigator.credentials.create.
@@ -218,7 +214,6 @@ class SecurityKey(models.Model):
     def verify_registration(
         cls, user: User, session: SessionStore, raw_credential: str, **kwargs: Any
     ) -> SecurityKey:
-
         """
         Verifies key registration and creates the SecurityKey instance
         on successful validation.
@@ -305,7 +300,6 @@ class SecurityKey(models.Model):
     def credentials(
         cls, username: User | str, session: SessionStore, for_login: bool = False
     ) -> list[PublicKeyCredentialDescriptor]:
-
         """
         Returns a list of credentials for the specified username
 
@@ -350,7 +344,6 @@ class SecurityKey(models.Model):
     def generate_authentication(
         cls, username: User | str, session: SessionStore, for_login: bool = False
     ) -> str:
-
         """
         Generates webauthn authentication options to be passed to
         `navagitor.credentials.get`
@@ -384,7 +377,6 @@ class SecurityKey(models.Model):
         raw_credential: str,
         for_login: bool = False,
     ) -> SecurityKey:
-
         """
         Verify the webauthn authentication
 

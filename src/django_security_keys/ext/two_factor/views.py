@@ -60,7 +60,6 @@ class LoginView(two_factor.views.LoginView):
     def attempt_passwordless_auth(
         self, request: WSGIRequest, **kwargs: Any
     ) -> HttpResponseRedirect | None:
-
         """
         Prepares and attempts a passwordless authentication
         using a security key credential.
@@ -119,7 +118,6 @@ class LoginView(two_factor.views.LoginView):
         return context
 
     def get_security_key_device(self) -> SecurityKeyDevice:
-
         """
         Will return a device object representing a webauthn
         choice if the user has any webauthn devices set up

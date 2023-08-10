@@ -33,7 +33,6 @@ def convert_to_bool(data: bool) -> bool:
 
 
 def basic_logout(request: WSGIRequest) -> HttpResponseRedirect:
-
     """
     Very basic logout - mostly provided for bootstrap / testing
     purposes, you should provide your own secure logout view
@@ -44,7 +43,6 @@ def basic_logout(request: WSGIRequest) -> HttpResponseRedirect:
 
 
 def basic_login(request: WSGIRequest) -> HttpResponse | HttpResponseRedirect:
-
     """
     Very basic login handler that supports password-less login
     mostly provided for example / testing purposes, you should
@@ -102,7 +100,6 @@ def basic_login(request: WSGIRequest) -> HttpResponse | HttpResponseRedirect:
 
 @login_required
 def manage_keys(request: WSGIRequest) -> HttpResponse:
-
     """
     Very basic key management view where user is presented with a list
     of their keys and a form to register new keys.
@@ -214,7 +211,6 @@ def register_security_key_form(
 
 @transaction.atomic
 def verify_authentication(request: WSGIRequest) -> JsonResponse:
-
     """
     Verify the authentication attempt.
 
@@ -292,7 +288,6 @@ def remove_security_key(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
 def remove_security_key_form(
     request: WSGIRequest, **kwargs: Any
 ) -> HttpResponseRedirect:
-
     """
     Decommision a security key through a static form approach.
 
