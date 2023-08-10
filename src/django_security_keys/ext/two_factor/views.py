@@ -1,15 +1,23 @@
+from __future__ import annotations
+
 import time
+from typing import Any
 
 import two_factor.views
 from django.contrib.auth import authenticate
+from django.contrib.auth.forms import AuthenticationForm
+from django.core.handlers.wsgi import WSGIRequest
+from django.http.response import HttpResponse, HttpResponseRedirect
+from django.template.response import TemplateResponse
 from django.views.generic import FormView
 
 from django_security_keys.ext.two_factor import forms
+from django_security_keys.ext.two_factor.forms import SecurityKeyDeviceValidation
 from django_security_keys.models import SecurityKey, SecurityKeyDevice
 
 
 class DisableView(two_factor.views.DisableView):
-    def dispatch(self, *args, **kwargs):
+    def dispatch(self, *args: Any, **kwargs: Any) -> HttpResponse:
         self.success_url = "/"
         return FormView.dispatch(self, *args, **kwargs)
 
@@ -19,7 +27,7 @@ class LoginView(two_factor.views.LoginView):
         ("security-key", forms.SecurityKeyDeviceValidation),
     )
 
-    def has_security_key_step(self):
+    def has_security_key_step(self) -> bool:
         if not self.get_user():
             return False
 
@@ -40,14 +48,18 @@ class LoginView(two_factor.views.LoginView):
         "security-key": has_security_key_step,
     }
 
-    def post(self, *args, **kwargs):
+    def post(
+        self, *args: Any, **kwargs: Any
+    ) -> HttpResponseRedirect | TemplateResponse:
         request = self.request
         passwordless = self.attempt_passwordless_auth(request, **kwargs)
         if passwordless:
             return passwordless
         return super().post(*args, **kwargs)
 
-    def attempt_passwordless_auth(self, request, **kwargs):
+    def attempt_passwordless_auth(
+        self, request: WSGIRequest, **kwargs: Any
+    ) -> HttpResponseRedirect | None:
         """
         Prepares and attempts a passwordless authentication
         using a security key credential.
@@ -84,7 +96,9 @@ class LoginView(two_factor.views.LoginView):
                     self.passwordless_error = f"{exc}"
                     return self.render_goto_step("auth")
 
-    def get_context_data(self, form, **kwargs):
+    def get_context_data(
+        self, form: AuthenticationForm | SecurityKeyDeviceValidation, **kwargs: Any
+    ) -> dict[str, Any]:
         """
         If post request was rate limited the rate limit message
         needs to be communicated via the template context.
@@ -103,7 +117,7 @@ class LoginView(two_factor.views.LoginView):
 
         return context
 
-    def get_security_key_device(self):
+    def get_security_key_device(self) -> SecurityKeyDevice:
         """
         Will return a device object representing a webauthn
         choice if the user has any webauthn devices set up
@@ -124,7 +138,7 @@ class LoginView(two_factor.views.LoginView):
 
         return device
 
-    def get_device(self, step=None):
+    def get_device(self, step: str | None = None) -> SecurityKeyDevice:
         """
         Override this to can enable EmailDevice as a
         challenge device for one time passwords.

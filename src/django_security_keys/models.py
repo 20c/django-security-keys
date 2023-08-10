@@ -11,11 +11,17 @@ Ref: https://w3c.github.io/webauthn
 Ref: https://github.com/duo-labs/py_webauthn
 """
 
+from __future__ import annotations
+
 import secrets
+from typing import Any
 
 import webauthn
 from django.conf import settings
+from django.contrib.auth.models import User
+from django.contrib.sessions.backends.db import SessionStore
 from django.db import models
+from django.utils.functional import SimpleLazyObject
 from django.utils.translation import gettext_lazy as _
 from django_otp.models import Device, ThrottlingMixin
 from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
@@ -60,7 +66,7 @@ class UserHandle(models.Model):
         verbose_name_plural = _("Webauthn User Handles")
 
     @classmethod
-    def require_for_user(cls, user):
+    def require_for_user(cls, user: User | SimpleLazyObject) -> UserHandle:
         """
         Requires a user handle for the user, will create it if it does not exist
 
@@ -131,7 +137,7 @@ class SecurityKey(models.Model):
     updated = models.DateTimeField(auto_now=True)
 
     @classmethod
-    def set_challenge(cls, session, challenge):
+    def set_challenge(cls, session: SessionStore, challenge: bytes) -> None:
         """
         Sets a webauthn challenge used for key registration or authentication
         on the session.
@@ -146,7 +152,7 @@ class SecurityKey(models.Model):
         session["webauthn_challenge"] = bytes_to_base64url(challenge)
 
     @classmethod
-    def get_challenge(cls, session):
+    def get_challenge(cls, session: SessionStore) -> bytes:
         """
         Retrives the webauthn challenge for the specified session
 
@@ -162,7 +168,7 @@ class SecurityKey(models.Model):
         return base64url_to_bytes(session["webauthn_challenge"])
 
     @classmethod
-    def clear_challenge(cls, session):
+    def clear_challenge(cls, session: SessionStore) -> None:
         """
         Removes the webauthn challenge from the specified session
 
@@ -177,7 +183,7 @@ class SecurityKey(models.Model):
             pass
 
     @classmethod
-    def generate_registration(cls, user, session):
+    def generate_registration(cls, user: User, session: SessionStore) -> str:
         """
         Generate key registration options to be passed to
         navigator.credentials.create.
@@ -205,7 +211,9 @@ class SecurityKey(models.Model):
         return webauthn.options_to_json(opts)
 
     @classmethod
-    def verify_registration(cls, user, session, raw_credential, **kwargs):
+    def verify_registration(
+        cls, user: User, session: SessionStore, raw_credential: str, **kwargs: Any
+    ) -> SecurityKey:
         """
         Verifies key registration and creates the SecurityKey instance
         on successful validation.
@@ -274,7 +282,7 @@ class SecurityKey(models.Model):
         return key
 
     @classmethod
-    def clear_session(cls, session):
+    def clear_session(cls, session: SessionStore):
         """
         Cleans up webauthn data for session
 
@@ -289,7 +297,9 @@ class SecurityKey(models.Model):
             pass
 
     @classmethod
-    def credentials(cls, username, session, for_login=False):
+    def credentials(
+        cls, username: User | str, session: SessionStore, for_login: bool = False
+    ) -> list[PublicKeyCredentialDescriptor]:
         """
         Returns a list of credentials for the specified username
 
@@ -331,7 +341,9 @@ class SecurityKey(models.Model):
         ]
 
     @classmethod
-    def generate_authentication(cls, username, session, for_login=False):
+    def generate_authentication(
+        cls, username: User | str, session: SessionStore, for_login: bool = False
+    ) -> str:
         """
         Generates webauthn authentication options to be passed to
         `navagitor.credentials.get`
@@ -358,7 +370,13 @@ class SecurityKey(models.Model):
         return webauthn.options_to_json(opts)
 
     @classmethod
-    def verify_authentication(cls, username, session, raw_credential, for_login=False):
+    def verify_authentication(
+        cls,
+        username: str,
+        session: SessionStore,
+        raw_credential: str,
+        for_login: bool = False,
+    ) -> SecurityKey:
         """
         Verify the webauthn authentication
 
@@ -431,14 +449,14 @@ class SecurityKeyDevice(ThrottlingMixin, Device):
         verbose_name_plural = _("Webauthn Security Key 2FA Devices")
 
     @classmethod
-    def require_for_user(cls, user):
+    def require_for_user(cls, user: User) -> SecurityKeyDevice:
         try:
             return cls.objects.get(user=user)
         except cls.DoesNotExist:
             return cls.objects.create(user=user, name="security-keys")
 
     @property
-    def method(self):
+    def method(self) -> str:
         return "security-key"
 
     @property

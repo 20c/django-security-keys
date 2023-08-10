@@ -4,7 +4,6 @@
 [![PyPI](https://img.shields.io/pypi/v/django-security-keys.svg?maxAge=60)](https://pypi.python.org/pypi/django-security-keys)
 [![PyPI](https://img.shields.io/pypi/pyversions/django-security-keys.svg?maxAge=600)](https://pypi.python.org/pypi/django-security-keys)
 [![Tests](https://github.com/20c/django-security-keys/workflows/tests/badge.svg)](https://github.com/20c/django-security-keys)
-[![LGTM Grade](https://img.shields.io/lgtm/grade/python/github/20c/django-security-keys)](https://lgtm.com/projects/g/20c/django-security-keys/alerts/)
 [![Codecov](https://img.shields.io/codecov/c/github/20c/django-security-keys/master.svg)](https://codecov.io/github/20c/django-security-keys)
 
 Django webauthn security key support
@@ -19,7 +18,7 @@ The current change log is available at <https://github.com/20c/django-security-k
 
 ## License
 
-Copyright 2021 20C, LLC
+Copyright 2021-2023 20C, LLC
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this software except in compliance with the License.

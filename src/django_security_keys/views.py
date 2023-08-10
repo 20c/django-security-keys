@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 import json
+from typing import Any
 
 from django.conf import settings
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+from django.core.handlers.wsgi import WSGIRequest
 from django.db import transaction
 from django.http import JsonResponse
+from django.http.response import HttpResponse, HttpResponseRedirect
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -14,7 +19,7 @@ from django_security_keys.forms import LoginForm, RegisterKeyForm
 from django_security_keys.models import SecurityKey
 
 
-def convert_to_bool(data):
+def convert_to_bool(data: bool) -> bool:
     if data is None:
         return False
 
@@ -27,7 +32,7 @@ def convert_to_bool(data):
     return False
 
 
-def basic_logout(request):
+def basic_logout(request: WSGIRequest) -> HttpResponseRedirect:
     """
     Very basic logout - mostly provided for bootstrap / testing
     purposes, you should provide your own secure logout view
@@ -37,7 +42,7 @@ def basic_logout(request):
     return redirect(reverse("login"))
 
 
-def basic_login(request):
+def basic_login(request: WSGIRequest) -> HttpResponse | HttpResponseRedirect:
     """
     Very basic login handler that supports password-less login
     mostly provided for example / testing purposes, you should
@@ -94,7 +99,7 @@ def basic_login(request):
 
 
 @login_required
-def manage_keys(request):
+def manage_keys(request: WSGIRequest) -> HttpResponse:
     """
     Very basic key management view where user is presented with a list
     of their keys and a form to register new keys.
@@ -105,7 +110,7 @@ def manage_keys(request):
 
 
 @login_required
-def request_registration(request, **kwargs):
+def request_registration(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
     """
     Requests webauthn registration options from the server
     as a JSON response
@@ -116,7 +121,7 @@ def request_registration(request, **kwargs):
     )
 
 
-def request_authentication(request, **kwargs):
+def request_authentication(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
     """
     Requests webauthn authentications options from the server
     as a JSON response
@@ -141,7 +146,7 @@ def request_authentication(request, **kwargs):
 
 @login_required
 @transaction.atomic
-def register_security_key(request, **kwargs):
+def register_security_key(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
     """
     Register a webauthn security key.
 
@@ -173,7 +178,9 @@ def register_security_key(request, **kwargs):
 
 @login_required
 @transaction.atomic
-def register_security_key_form(request, **kwargs):
+def register_security_key_form(
+    request: WSGIRequest, **kwargs: Any
+) -> HttpResponseRedirect:
     """
     Register a webauthn security key with a static form approach.
 
@@ -203,7 +210,7 @@ def register_security_key_form(request, **kwargs):
 
 
 @transaction.atomic
-def verify_authentication(request):
+def verify_authentication(request: WSGIRequest) -> JsonResponse:
     """
     Verify the authentication attempt.
 
@@ -249,7 +256,7 @@ def verify_authentication(request):
 
 
 @login_required
-def remove_security_key(request, **kwargs):
+def remove_security_key(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
     """
     Decommission a security key.
 
@@ -278,7 +285,9 @@ def remove_security_key(request, **kwargs):
 
 
 @login_required
-def remove_security_key_form(request, **kwargs):
+def remove_security_key_form(
+    request: WSGIRequest, **kwargs: Any
+) -> HttpResponseRedirect:
     """
     Decommision a security key through a static form approach.
 
