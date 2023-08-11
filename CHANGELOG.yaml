@@ -1,14 +1,16 @@
 Unreleased:
-  added:
-  - python3.10 support
-  - python3.11 support
-  - django4.2 support
-  - python type hints
+  added: []
   fixed: []
   changed: []
   deprecated: []
   removed: []
   security: []
+1.1.0:
+  added:
+  - python3.10 support
+  - python3.11 support
+  - django4.2 support
+  - python type hints
 1.0.1:
   fixed:
   - issue with backend and django test client
