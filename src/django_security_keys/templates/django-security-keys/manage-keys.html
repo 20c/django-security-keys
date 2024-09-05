@@ -6,7 +6,7 @@
   <thead>
     <tr>
       <th>Name</th>
-      <th>Password-less login</th>
+      <th>passkey login</th>
       <th></th>
     </tr>
   </thead>
@@ -14,7 +14,7 @@
     {% for key in request.user.webauthn_security_keys.all %}
     <tr>
       <td>{{ key.name }}</td>
-      <td>{% if key.passwordless_login %}yes{% else %}no{% endif %}</td>
+      <td>{% if key.passkey_login %}yes{% else %}no{% endif %}</td>
       <td>
         <form method="POST" action="{% url "security-keys:decommission-form" %}">
           {% csrf_token %}

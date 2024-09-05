@@ -13,9 +13,9 @@ from django.views.generic import FormView
 
 from django_security_keys.ext.two_factor import forms
 from django_security_keys.ext.two_factor.forms import SecurityKeyDeviceValidation
-from django_security_keys.models import SecurityKey, SecurityKeyDevice
-
-
+from django_security_keys.models import SecurityKey, SecurityKeyDevice, UserHandle
+import json
+from webauthn.helpers import base64url_to_bytes
 class DisableView(two_factor.views.DisableView):
     def dispatch(self, *args: Any, **kwargs: Any) -> HttpResponse:
         self.success_url = "/"
@@ -38,7 +38,7 @@ class LoginView(two_factor.views.LoginView):
             return False
 
         return (
-            len(SecurityKey.credentials(self.get_user().username, self.request.session))
+            len(SecurityKey.credentials(self.get_user().username))
             > 0
         )
 
@@ -52,49 +52,52 @@ class LoginView(two_factor.views.LoginView):
         self, *args: Any, **kwargs: Any
     ) -> HttpResponseRedirect | TemplateResponse:
         request = self.request
-        passwordless = self.attempt_passwordless_auth(request, **kwargs)
-        if passwordless:
-            return passwordless
+        if not request.POST.get("auth-username"):
+            attempt_passkey_auth = self.attempt_passkey_auth(request, **kwargs)
+            if attempt_passkey_auth:
+                return attempt_passkey_auth
         return super().post(*args, **kwargs)
 
-    def attempt_passwordless_auth(
+    def attempt_passkey_auth(
         self, request: WSGIRequest, **kwargs: Any
     ) -> HttpResponseRedirect | None:
         """
-        Prepares and attempts a passwordless authentication
+        Prepares and attempts a passkey authentication
         using a security key credential.
 
         This requires that the auth-username and credential
         fields are set in the POST data.
 
-        This requires that the PasswordlessAuthenticationBackend is
-        loaded.
         """
 
         if self.steps.current == "auth":
-            credential = request.POST.get("credential")
-            username = request.POST.get("auth-username")
-
-            # support password-less login using webauthn
-            if username and credential:
+            try:
+                credential = request.POST.get("credential")
                 try:
+                    user_handle = base64url_to_bytes(json.loads(credential)['response']['userHandle']).decode('utf-8')
+                    username = UserHandle.objects.get(handle=user_handle).user.username
+                except:
+                    raise Exception("Failed login using passkey")
+                # support passkey login using webauthn
+                if username and credential:
                     user = authenticate(
                         request, username=username, u2f_credential=credential
                     )
+                    if not user:
+                        raise Exception("Failed login using passkey")
                     self.storage.reset()
                     self.storage.authenticated_user = user
                     self.storage.data["authentication_time"] = int(time.time())
                     form = self.get_form(
                         data=self.request.POST, files=self.request.FILES
                     )
-
                     if self.steps.current == self.steps.last:
                         return self.render_done(form, **kwargs)
                     return self.render_next_step(form)
 
-                except Exception as exc:
-                    self.passwordless_error = f"{exc}"
-                    return self.render_goto_step("auth")
+            except Exception as exc:
+                self.passkey_error = f"{exc}"
+                return self.render_goto_step("auth")
 
     def get_context_data(
         self, form: AuthenticationForm | SecurityKeyDeviceValidation, **kwargs: Any
@@ -110,7 +113,7 @@ class LoginView(two_factor.views.LoginView):
             if self.has_security_key_step():
                 context["other_devices"] += [self.get_security_key_device()]
 
-        context["passwordless_error"] = getattr(self, "passwordless_error", None)
+        context["passkey_error"] = getattr(self, "passkey_error", None)
 
         if self.steps.current == "security-key":
             context["device"] = self.get_security_key_device()

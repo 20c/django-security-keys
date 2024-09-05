@@ -3,7 +3,6 @@ import json
 import pytest
 from django.test import Client
 from django.urls import reverse
-from webauthn.helpers.exceptions import InvalidAuthenticationResponse
 
 from django_security_keys.models import SecurityKey
 
@@ -22,11 +21,11 @@ def test_login(user):
 
 
 @pytest.mark.django_db
-def test_passwordless_login(test_auth_credential):
-    user, session, cred = test_auth_credential
+def test_passkey_login(test_auth_credential_passkey):
+    user, session, cred = test_auth_credential_passkey
 
     key = user.webauthn_security_keys.first()
-    key.passwordless_login = True
+    key.passkey_login = True
     key.save()
 
     c = Client()
@@ -36,8 +35,7 @@ def test_passwordless_login(test_auth_credential):
     client_session = c.session
     SecurityKey.set_challenge(client_session, SecurityKey.get_challenge(session))
     client_session.save()
-
-    response = c.post(reverse("login"), {"username": user.username, "credential": cred})
+    response = c.post(reverse("login"), {"credential": cred})
     assert response.status_code == 302
 
     response = c.get(reverse("security-keys:manage-keys"))
@@ -45,11 +43,11 @@ def test_passwordless_login(test_auth_credential):
 
 
 @pytest.mark.django_db
-def test_passwordless_login_failure_invalid_signature(invalid_auth_credential):
+def test_passkey_login_failure_invalid_signature(invalid_auth_credential):
     user, session, cred = invalid_auth_credential
 
     key = user.webauthn_security_keys.first()
-    key.passwordless_login = True
+    key.passkey_login = True
     key.save()
 
     c = Client()
@@ -60,17 +58,16 @@ def test_passwordless_login_failure_invalid_signature(invalid_auth_credential):
     SecurityKey.set_challenge(client_session, SecurityKey.get_challenge(session))
     client_session.save()
 
-    with pytest.raises(InvalidAuthenticationResponse):
-        response = c.post(
-            reverse("login"), {"username": user.username, "credential": cred}
-        )
+    response = c.post(
+        reverse("login"), {"credential": cred}
+    )
 
     response = c.get(reverse("security-keys:manage-keys"))
     assert "Your keys" not in response.content.decode("utf-8")
 
 
 @pytest.mark.django_db
-def test_passwordless_login_failure_key_not_enabled(test_auth_credential):
+def test_passkey_login_failure_key_not_enabled(test_auth_credential):
     user, session, cred = test_auth_credential
 
     c = Client()
@@ -81,7 +78,7 @@ def test_passwordless_login_failure_key_not_enabled(test_auth_credential):
     SecurityKey.set_challenge(client_session, SecurityKey.get_challenge(session))
     client_session.save()
 
-    response = c.post(reverse("login"), {"username": user.username, "credential": cred})
+    response = c.post(reverse("login"), {"credential": cred})
 
     response = c.get(reverse("security-keys:manage-keys"))
     assert "Your keys" not in response.content.decode("utf-8")
@@ -110,11 +107,11 @@ def test_django_two_factor_auth(test_auth_credential):
 
 
 @pytest.mark.django_db
-def test_django_two_factor_auth_passwordless_login(test_auth_credential):
-    user, session, cred = test_auth_credential
+def test_django_two_factor_auth_passkey_login(test_auth_credential_passkey):
+    user, session, cred = test_auth_credential_passkey
 
     key = user.webauthn_security_keys.first()
-    key.passwordless_login = True
+    key.passkey_login = True
     key.save()
 
     c = Client()
@@ -125,8 +122,9 @@ def test_django_two_factor_auth_passwordless_login(test_auth_credential):
 
     response = c.post(
         reverse("two-factor-auth:login"),
-        {"auth-username": user.username, "credential": cred},
+        {"credential": cred},
     )
+    print(response.content)
     assert response.status_code == 302
 
 
