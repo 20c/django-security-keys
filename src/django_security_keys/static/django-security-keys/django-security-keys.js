@@ -22,12 +22,63 @@ window.SecurityKeys = {
 
     this.config = config;
 
-    this.init_passwordless_login();
     this.init_two_factor();
     this.init_key_registration();
 
   },
 
+  init_autofill : async function(config) {
+
+    this.config = config;
+
+    await this.init_passkey_autofill();
+
+  },
+  init_passkey_autofill : async function() {
+    var login_form = $(".login-form form")
+
+    if (
+      typeof window.PublicKeyCredential !== 'undefined'
+      && typeof window.PublicKeyCredential.isConditionalMediationAvailable === 'function'
+    ) {
+      const available = await PublicKeyCredential.isConditionalMediationAvailable();
+      var url = this.config.url_request_authentication;
+      payload = {for_login:true}
+      payload.csrfmiddlewaretoken = this.config.csrf_token;
+
+      if (available){
+        $.post(url, payload, (response) => {
+
+          response.challenge = base64url.decode(response.challenge);
+    
+          var assertion = navigator.credentials.get({publicKey: response,mediation: "conditional",});
+          assertion.catch((exc) => {
+            if(error)
+              error(exc);
+          });
+          assertion.then((PublicKeyCredential) => {
+            const decoder = new TextDecoder();
+            var credentials = {
+              id: PublicKeyCredential.id,
+              rawId: base64url.encode(PublicKeyCredential.rawId),
+              response: {
+                authenticatorData: base64url.encode(PublicKeyCredential.response.authenticatorData),
+                clientDataJSON: base64url.encode(PublicKeyCredential.response.clientDataJSON),
+                signature: base64url.encode(PublicKeyCredential.response.signature),
+                userHandle: decoder.decode(PublicKeyCredential.response.userHandle)
+              },
+              type: PublicKeyCredential.type
+            }
+    
+            payload.credential = JSON.stringify(credentials);
+            login_form.append($('<input type="hidden" name="credential">').val(payload.credential));
+            login_form.submit();
+          });
+    
+        });
+      }
+    }
+  },
   /**
    * Convert array-buffer to uint8 array
    *
@@ -62,72 +113,6 @@ window.SecurityKeys = {
 
   base64_to_array_buffer : function(b) {
     return base64url.decode(b);
-  },
-
-  /**
-   * Initializes password-less login support for django-login
-   * form
-   *
-   * This is called automatically by `init()`
-   *
-   * @method init_passwordless_login()
-   */
-
-  init_passwordless_login : function() {
-    var login_form = $(".login-form form")
-    var login_step = login_form.find('[name="login_view-current_step"]');
-
-    // normal or unknown django login (no django-two-factor wizard found)
-    var normal_login = (login_form.length && !login_step.length);
-
-    // django-two-factor login (wizard found and step is at "auth")
-    var two_factor_login = (login_step.val() == "auth");
-
-    if(normal_login || two_factor_login) {
-      var button_next = login_form.find('button[type="submit"]').filter('.btn-login,.btn-primary');
-      var fn_submit = function(ev) {
-        var password = login_form.find("#id_auth-password, #id_password").val();
-        var username= login_form.find("#id_auth-username, #id_username").val();
-
-        if(password == "" && username != "") {
-
-          // prevent default form submit since we need to wait
-          // for credentials.
-          ev.preventDefault();
-
-          window.SecurityKeys.request_authenticate(
-            username,
-            true,
-
-            (payload) => {
-
-              // auth assertion successful, attach credentials
-
-              login_form.append($('<input type="hidden" name="credential">').val(payload.credential));
-              login_form.submit();
-
-            },
-
-            () => {
-
-              console.log("No credentials for user");
-
-              // no registered credentials
-
-              login_form.submit();
-
-            }
-          );
-        }
-      };
-
-      button_next.click(fn_submit);
-      login_form.find('input').on('keydown', (ev) => {
-        if(ev.which==13) {
-          fn_submit(ev);
-        }
-      });
-    }
   },
 
   /**
@@ -269,7 +254,7 @@ window.SecurityKeys = {
         this.id = base64url.decode(this.id);
       });
 
-      if(!response.allowCredentials.length) {
+      if(!for_login && !response.allowCredentials.length) {
         if(no_credentials)
           return no_credentials();
         return;
@@ -303,6 +288,35 @@ window.SecurityKeys = {
   },
 
   /**
+   * Converts a Base64 encoded string to an ArrayBuffer.
+   *
+   * This function takes a Base64 encoded string as input and converts it to an ArrayBuffer. 
+   * It first decodes the Base64 string into a binary string, then creates an ArrayBuffer 
+   * of the appropriate size and populates it with the decoded bytes.
+   *
+   * Note:
+   * - The function replaces '_' with '/' and '-' with '+' in the input string to handle URL-safe Base64 encoding.
+   * - If the input string is `null`, the function returns `null`.
+   *
+   * @param {string} b64_encoded_string - The Base64 encoded string to be converted.
+   * @returns {ArrayBuffer|null} The resulting ArrayBuffer containing the decoded bytes, 
+   * or `null` if the input is `null`.
+   */
+  b64str2ab : function(b64_encoded_string) {
+      if (b64_encoded_string == null) {
+          return null;
+      };
+
+      let string = atob(b64_encoded_string.replace(/_/g, '/').replace(/-/g, '+')),
+          buf = new ArrayBuffer(string.length),
+          bufView = new Uint8Array(buf);
+      for (var i = 0, strLen = string.length; i < strLen; i++) {
+          bufView[i] = string.charCodeAt(i);
+      }
+      return buf;
+  },
+
+  /**
    * Security key registration process
    *
    * Will request registration options from the server and then start
@@ -325,6 +339,9 @@ window.SecurityKeys = {
       var challenge_str = SecurityKeys.base64_to_array_buffer(response.challenge);
       response.challenge = challenge_str;
       response.user.id = SecurityKeys.array_buffer_to_uint8(response.user.id);
+      response.excludeCredentials.forEach((credential) => {
+          credential.id = SecurityKeys.b64str2ab(credential.id);
+      });
       navigator.credentials.create(
         {publicKey: response}
       ).then((credential) => {

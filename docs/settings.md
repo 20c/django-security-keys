@@ -14,15 +14,15 @@ There are no default values for these as they are crucial for operation.
 
 ## django 
 
-For password-less login to work `django_security_keys.backends.PasswordlessAuthenticationBackend` needs to be added to `AUTHENTICATION_BACKENDS`
+For passkey login to work `django_security_keys.backends.PasskeyAuthenticationBackend` needs to be added to `AUTHENTICATION_BACKENDS`
 
 It also needs to be added as the first authentication backend.
 
 ```
 AUTHENTICATION_BACKENDS = (
-    # for passwordless auth using security-key
+    # for passkey auth using security-key
     # this needs to be first so it can do some clean up
-    "django_security_keys.backends.PasswordlessAuthenticationBackend",
+    "django_security_keys.backends.PasskeyAuthenticationBackend",
 
 		# additional auth backends 
     "django.contrib.auth.backends.ModelBackend",

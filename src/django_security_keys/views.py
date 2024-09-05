@@ -16,21 +16,9 @@ from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import gettext_lazy as _
 
 from django_security_keys.forms import LoginForm, RegisterKeyForm
-from django_security_keys.models import SecurityKey
-
-
-def convert_to_bool(data: bool) -> bool:
-    if data is None:
-        return False
-
-    if isinstance(data, bool):
-        return data
-
-    if isinstance(data, str):
-        return data.lower() == "true"
-
-    return False
-
+from django_security_keys.models import SecurityKey, UserHandle
+from django_security_keys.utils import convert_to_bool
+from webauthn.helpers import base64url_to_bytes
 
 def basic_logout(request: WSGIRequest) -> HttpResponseRedirect:
     """
@@ -44,7 +32,7 @@ def basic_logout(request: WSGIRequest) -> HttpResponseRedirect:
 
 def basic_login(request: WSGIRequest) -> HttpResponse | HttpResponseRedirect:
     """
-    Very basic login handler that supports password-less login
+    Very basic login handler that supports passkey login
     mostly provided for example / testing purposes, you should
     likely create your own implementation of this
     """
@@ -54,19 +42,24 @@ def basic_login(request: WSGIRequest) -> HttpResponse | HttpResponseRedirect:
 
         form = LoginForm(request.POST)
         if form.is_valid():
-            # basic form validation ok (at this point only username requirement
+            # basic form validation ok
             # has been validated
-
             password = form.cleaned_data["password"]
             username = form.cleaned_data["username"]
             credential = request.POST.get("credential")
-
-            if credential:
-                # credential is set, provide it in the authenticate request
-
-                user = authenticate(
-                    request, username=username, u2f_credential=credential
-                )
+            user = None
+            if credential and not (username or password):
+                # credential is set and not set username, password, check username in credential.response.userHandle
+                try:
+                    user_handle = base64url_to_bytes(json.loads(credential)['response']['userHandle']).decode('utf-8')
+                    username = UserHandle.objects.get(handle=user_handle).user.username
+                    user = authenticate(
+                        request, username=username, u2f_credential=credential
+                    )
+                except:
+                    import traceback
+                    print(traceback.format_exc())
+                    form.add_error("__all__", "Failed login using passkey")
             else:
                 # no credential, attempt to do a normal login with name and password
 
@@ -88,8 +81,8 @@ def basic_login(request: WSGIRequest) -> HttpResponse | HttpResponseRedirect:
 
             else:
                 # authentication failure
-
-                form.add_error("__all__", "Invalid username / password")
+                if not form.has_error("__all__"):
+                    form.add_error("__all__", "Invalid username / password")
 
         return render(request, "django-security-keys/login.html", {"form": form})
     else:
@@ -125,16 +118,12 @@ def request_authentication(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
     """
     Requests webauthn authentications options from the server
     as a JSON response
-
-    Expects a `username` POST parameter
     """
 
     username = request.POST.get("username")
-    for_login = request.POST.get("for_login")
-
-    if not username:
-        return JsonResponse({"non_field_errors": _("No username supplied")}, status=403)
-
+    for_login = convert_to_bool(request.POST.get("for_login",False))
+    if not for_login and not username:
+            return JsonResponse({"non_field_errors": _("No username supplied")}, status=403)
     return JsonResponse(
         json.loads(
             SecurityKey.generate_authentication(
@@ -154,21 +143,21 @@ def register_security_key(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
 
     - credential(`base64`): registration credential
     - name(`str`): key nick name
-    - passwordless_login (`bool`): allow passwordless login
+    - passkey_login (`bool`): allow passkey login
 
     Returns a JSON response
     """
 
     name = request.POST.get("name", "security-key")
     credential = request.POST.get("credential")
-    passwordless_login = convert_to_bool(request.POST.get("passwordless_login", False))
+    passkey_login = convert_to_bool(request.POST.get("passkey_login", False))
 
     security_key = SecurityKey.verify_registration(
         request.user,
         request.session,
         credential,
         name=name,
-        passwordless_login=passwordless_login,
+        passkey_login=passkey_login,
     )
 
     return JsonResponse(
@@ -188,7 +177,7 @@ def register_security_key_form(
 
     - credential(`base64`): registration credential
     - name(`str`): key nick name
-    - passwordless_login (`string`): "on" if enabled
+    - passkey_login (`string`): "on" if enabled
 
     This will return a html response
     """
@@ -201,7 +190,7 @@ def register_security_key_form(
             request.session,
             form.cleaned_data["credential"],
             name=form.cleaned_data["name"] or "security-key",
-            passwordless_login=form.cleaned_data["passwordless_login"],
+            passkey_login=form.cleaned_data["passkey_login"],
         )
         return redirect(reverse("security-keys:manage-keys"))
     else:
@@ -224,7 +213,7 @@ def verify_authentication(request: WSGIRequest) -> JsonResponse:
 
     #### login
 
-    the attempt is for a passwordless login process and will only
+    the attempt is for a passkey login process and will only
     success if the chosen key has that option enabled.
 
     #### 2fa

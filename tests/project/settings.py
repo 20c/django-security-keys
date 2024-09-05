@@ -81,9 +81,9 @@ TEMPLATES = [
 WSGI_APPLICATION = "project.wsgi.application"
 
 AUTHENTICATION_BACKENDS = (
-    # for passwordless auth using security-key
+    # for passkey auth using security-key
     # this needs to be first so it can do some clean up
-    "django_security_keys.backends.PasswordlessAuthenticationBackend",
+    "django_security_keys.backends.PasskeyAuthenticationBackend",
     "django.contrib.auth.backends.ModelBackend",
 )
 

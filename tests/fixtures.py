@@ -10,10 +10,11 @@ __all__ = [
     "user",
     "test_credential",
     "test_auth_credential",
+    "test_auth_credential_passkey",
     "invalid_auth_credential",
     "invalid_test_credential",
     "security_key",
-    "security_key_passwordless",
+    "security_key_passkey",
 ]
 
 
@@ -51,10 +52,14 @@ def invalid_test_credential():
 def test_auth_credential():
     return _test_auth_credential()
 
+@pytest.fixture
+def test_auth_credential_passkey():
+    return _test_auth_credential_passkey()
+
 
 @pytest.fixture
 def invalid_auth_credential():
-    user, session, cred = _test_auth_credential()
+    user, session, cred = _test_auth_credential_passkey()
 
     cred = json.loads(cred)
     cred["response"]["signature"] = cred["response"]["signature"].replace("o", "A")
@@ -69,8 +74,8 @@ def security_key():
 
 
 @pytest.fixture
-def security_key_passwordless():
-    return _security_key(passwordless_login=True)
+def security_key_passkey():
+    return _security_key(passkey_login=True)
 
 
 def _test_credential():
@@ -81,9 +86,9 @@ def _test_credential():
     session.create()
 
     # update user handle to fit the test-credential below
-    UserHandle.require_for_user(user)
-    user.webauthn_user_handle.handle = "12345"
-    user.webauthn_user_handle.save()
+    # UserHandle.require_for_user(user)
+    # user.webauthn_user_handle.handle = "12345"
+    # user.webauthn_user_handle.save()
 
     # update challenge to fit the test-credential below
     SecurityKey.set_challenge(
@@ -151,13 +156,48 @@ def _test_auth_credential():
     return (user, session, cred)
 
 
-def _security_key(passwordless_login=False):
+def _test_auth_credential_passkey():
+    from django_security_keys.models import SecurityKey, UserHandle
+
+    user, session, key = _security_key()
+
+    # update challenge to fit the test-credential below
+    SecurityKey.set_challenge(
+        session,
+        base64url_to_bytes(
+            "iPmAi1Pp1XL6oAgq3PWZtZPnZa1zFUDoGbaQ0_KvVG1lF2s3Rt_3o4uSzccy0tmcTIpTTT4BU1T-I4maavndjQ"
+        ),
+    )
+    UserHandle.objects.create(
+        user=user,
+        handle="xyW3XGlevvnRg2XgN7CeBuLKr_YJwmS2i_GM9eLt330"
+    )
+    
+    cred = json.dumps(
+        {
+            "id": "ZoIKP1JQvKdrYj1bTUPJ2eTUsbLeFkv-X5xJQNr4k6s",
+            "rawId": "ZoIKP1JQvKdrYj1bTUPJ2eTUsbLeFkv-X5xJQNr4k6s",
+            "response": {
+                "authenticatorData": "SZYN5YgOjGh0NBcPZHZgW4_krrmihjLHmVzzuoMdl2MFAAAAAQ",
+                "clientDataJSON": "eyJ0eXBlIjoid2ViYXV0aG4uZ2V0IiwiY2hhbGxlbmdlIjoiaVBtQWkxUHAxWEw2b0FncTNQV1p0WlBuWmExekZVRG9HYmFRMF9LdlZHMWxGMnMzUnRfM280dVN6Y2N5MHRtY1RJcFRUVDRCVTFULUk0bWFhdm5kalEiLCJvcmlnaW4iOiJodHRwOi8vbG9jYWxob3N0OjUwMDAiLCJjcm9zc09yaWdpbiI6ZmFsc2V9",
+                "signature": "iOHKX3erU5_OYP_r_9HLZ-CexCE4bQRrxM8WmuoKTDdhAnZSeTP0sjECjvjfeS8MJzN1ArmvV0H0C3yy_FdRFfcpUPZzdZ7bBcmPh1XPdxRwY747OrIzcTLTFQUPdn1U-izCZtP_78VGw9pCpdMsv4CUzZdJbEcRtQuRS03qUjqDaovoJhOqEBmxJn9Wu8tBi_Qx7A33RbYjlfyLm_EDqimzDZhyietyop6XUcpKarKqVH0M6mMrM5zTjp8xf3W7odFCadXEJg-ERZqFM0-9Uup6kJNLbr6C5J4NDYmSm3HCSA6lp2iEiMPKU8Ii7QZ61kybXLxsX4w4Dm3fOLjmDw",
+                "userHandle": "eHlXM1hHbGV2dm5SZzJYZ043Q2VCdUxLcl9ZSndtUzJpX0dNOWVMdDMzMA",
+            },
+            "type": "public-key",
+            "clientExtensionResults": {},
+        }
+    )
+
+    return (user, session, cred)
+
+
+def _security_key(passkey_login=False):
     from django_security_keys.models import SecurityKey
 
     user, session, cred = _test_credential()
 
     key = SecurityKey.verify_registration(
-        user, session, cred, passwordless_login=passwordless_login
+        user, session, cred, passkey_login=passkey_login
     )
 
     return (user, session, key)

@@ -1,5 +1,5 @@
 """
-Allows for passwordless login as well as using FIDO U2F for 2FA through django-two-factor.
+Allows for passkey login as well as using FIDO U2F for 2FA through django-two-factor.
 
 2FA integration is handled by extending a custom django-two-factor device.
 
@@ -102,7 +102,7 @@ class UserHandle(models.Model):
 class SecurityKey(models.Model):
 
     """
-    Describes a Webauthn (U2F) SecurityKey be used for passwordless
+    Describes a Webauthn (U2F) SecurityKey be used for passkey
     login or 2FA
 
     2FA is handled through SecurityKeyDevice which allows integration
@@ -129,8 +129,8 @@ class SecurityKey(models.Model):
     )
 
     type = models.CharField(max_length=64)
-    passwordless_login = models.BooleanField(
-        default=False, help_text=_("User has enabled this key for passwordless login")
+    passkey_login = models.BooleanField(
+        default=False, help_text=_("User has enabled this key for passkey login")
     )
 
     created = models.DateTimeField(auto_now_add=True)
@@ -197,13 +197,14 @@ class SecurityKey(models.Model):
 
         - `str` JSON string
         """
-
+        existing_credentials = SecurityKey.credentials(user.username,ignore_credential_filter=True)
         opts = webauthn.generate_registration_options(
             rp_id=settings.WEBAUTHN_RP_ID,
             rp_name=settings.WEBAUTHN_RP_NAME,
             user_id=UserHandle.require_for_user(user).handle,
             user_name=user.username,
             attestation=getattr(settings, "WEBAUTHN_ATTESTATION", "none"),
+            exclude_credentials=existing_credentials
         )
 
         cls.set_challenge(session, opts.challenge)
@@ -228,7 +229,7 @@ class SecurityKey(models.Model):
         - raw_credential (`str`): JSON formatted credential as returned
           by navigator.credentials.create
         - name (`str`="main"): nick name for the key
-        - passwordless_login (`bool`=False): enable the key for password-less
+        - passkey_login (`bool`=False): enable the key for passkey
           login
 
         Returns:
@@ -270,7 +271,7 @@ class SecurityKey(models.Model):
             ),
             sign_count=verified_registration.sign_count,
             name=kwargs.get("name", "main"),
-            passwordless_login=kwargs.get("passwordless_login", False),
+            passkey_login=kwargs.get("passkey_login", False),
             attestation=bytes_to_base64url(verified_registration.attestation_object),
             type="security-key",
         )
@@ -281,24 +282,10 @@ class SecurityKey(models.Model):
         SecurityKeyDevice.require_for_user(user)
         return key
 
-    @classmethod
-    def clear_session(cls, session: SessionStore):
-        """
-        Cleans up webauthn data for session
-
-        Arguments:
-
-        - session: request session
-        """
-
-        try:
-            del session["webauthn_passwordless"]
-        except KeyError:
-            pass
 
     @classmethod
     def credentials(
-        cls, username: User | str, session: SessionStore, for_login: bool = False
+        cls, username: User | str, for_login: bool = False, ignore_credential_filter = False
     ) -> list[PublicKeyCredentialDescriptor]:
         """
         Returns a list of credentials for the specified username
@@ -306,10 +293,9 @@ class SecurityKey(models.Model):
         Arguments:
 
         - username (`str`)
-        - session: django request session
         - for_login (`bool`=False): if True indicates that the
-          credentials are to be used for password-less login.
-
+          credentials are to be used for passkey login.
+        - ignore_credential_filter (`bool`=False): if True it will ignore the for_login filter
           if False indicates that the credentials are to be used
           as a two-factor step
 
@@ -319,22 +305,14 @@ class SecurityKey(models.Model):
         """
 
         qset = cls.objects.filter(user__username=username)
-
-        # if a security key was used for passwordless auth
-        # it should not be available for two factor auth
-
-        pl_key_id = session.get("webauthn_passwordless")
-        if pl_key_id and not for_login:
-            qset = qset.exclude(id=pl_key_id)
-
-        # if to be used for password-less login, exclude
-        # credentials that are not enabled for that.
-        if for_login:
-            qset = qset.filter(passwordless_login=True)
-
+        # ignore credential_filter to get all credentials data  
+        # example: used for excludeCredentials to prevent duplication of keys in 1 account in the same key      
+        if not ignore_credential_filter:
+            # if to be used for passkey login, exclude
+            # credentials that are not enabled for that.
+            qset = qset.filter(passkey_login=for_login)
         return [
             PublicKeyCredentialDescriptor(
-                type="public-key",
                 id=base64url_to_bytes(key.credential_id),
             )
             for key in qset
@@ -352,21 +330,22 @@ class SecurityKey(models.Model):
 
         - username (`str`)
         - session: django request session
-        - for_login: (`bool`=False): authentication options for password-less
+        - for_login: (`bool`=False): authentication options for passkey
           login
 
         Returns:
 
         - `str` JSON
         """
-
-        opts = webauthn.generate_authentication_options(
-            rp_id=settings.WEBAUTHN_RP_ID,
-            allow_credentials=cls.credentials(username, session, for_login=for_login),
-        )
-
+        options = {
+            "rp_id":settings.WEBAUTHN_RP_ID,
+        }
+        if not for_login:
+            options.update({
+                "allow_credentials":cls.credentials(username, for_login=for_login)
+            })
+        opts = webauthn.generate_authentication_options(**options)
         cls.set_challenge(session, opts.challenge)
-
         return webauthn.options_to_json(opts)
 
     @classmethod
@@ -386,7 +365,7 @@ class SecurityKey(models.Model):
         - session: django request session
         - raw_credentials (`str`): JSON formatted PublicKeyCredential as returned
           from `navigator.credentials.get`
-        - for_login: (`bool`=False): verify a password-less login attempt
+        - for_login: (`bool`=False): verify a passkey login attempt
 
         Returns:
 
@@ -409,8 +388,8 @@ class SecurityKey(models.Model):
         except SecurityKey.DoesNotExist:
             raise ValueError(_("Security key authentication failed"))
 
-        if for_login and not key.passwordless_login:
-            raise ValueError(_("Security key not enabled for password-less login"))
+        if for_login and not key.passkey_login:
+            raise ValueError(_("Security key not enabled for passkey login"))
 
         # verify authentication
 
