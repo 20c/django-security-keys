@@ -44,9 +44,7 @@ class PasskeyAuthenticationBackend(ModelBackend):
         if not username or not credential:
             return
 
-        has_credentials = SecurityKey.credentials(
-            username, for_login=True
-        )
+        has_credentials = SecurityKey.credentials(username, for_login=True)
 
         # no credential supplied
 

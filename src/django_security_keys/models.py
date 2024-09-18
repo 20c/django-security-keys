@@ -197,14 +197,16 @@ class SecurityKey(models.Model):
 
         - `str` JSON string
         """
-        existing_credentials = SecurityKey.credentials(user.username,ignore_credential_filter=True)
+        existing_credentials = SecurityKey.credentials(
+            user.username, ignore_credential_filter=True
+        )
         opts = webauthn.generate_registration_options(
             rp_id=settings.WEBAUTHN_RP_ID,
             rp_name=settings.WEBAUTHN_RP_NAME,
             user_id=UserHandle.require_for_user(user).handle,
             user_name=user.username,
             attestation=getattr(settings, "WEBAUTHN_ATTESTATION", "none"),
-            exclude_credentials=existing_credentials
+            exclude_credentials=existing_credentials,
         )
 
         cls.set_challenge(session, opts.challenge)
@@ -282,10 +284,12 @@ class SecurityKey(models.Model):
         SecurityKeyDevice.require_for_user(user)
         return key
 
-
     @classmethod
     def credentials(
-        cls, username: User | str, for_login: bool = False, ignore_credential_filter = False
+        cls,
+        username: User | str,
+        for_login: bool = False,
+        ignore_credential_filter=False,
     ) -> list[PublicKeyCredentialDescriptor]:
         """
         Returns a list of credentials for the specified username
@@ -305,8 +309,8 @@ class SecurityKey(models.Model):
         """
 
         qset = cls.objects.filter(user__username=username)
-        # ignore credential_filter to get all credentials data  
-        # example: used for excludeCredentials to prevent duplication of keys in 1 account in the same key      
+        # ignore credential_filter to get all credentials data
+        # example: used for excludeCredentials to prevent duplication of keys in 1 account in the same key
         if not ignore_credential_filter:
             # if to be used for passkey login, exclude
             # credentials that are not enabled for that.
@@ -338,12 +342,12 @@ class SecurityKey(models.Model):
         - `str` JSON
         """
         options = {
-            "rp_id":settings.WEBAUTHN_RP_ID,
+            "rp_id": settings.WEBAUTHN_RP_ID,
         }
         if not for_login:
-            options.update({
-                "allow_credentials":cls.credentials(username, for_login=for_login)
-            })
+            options.update(
+                {"allow_credentials": cls.credentials(username, for_login=for_login)}
+            )
         opts = webauthn.generate_authentication_options(**options)
         cls.set_challenge(session, opts.challenge)
         return webauthn.options_to_json(opts)

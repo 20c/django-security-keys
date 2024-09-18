@@ -58,9 +58,7 @@ def test_passkey_login_failure_invalid_signature(invalid_auth_credential):
     SecurityKey.set_challenge(client_session, SecurityKey.get_challenge(session))
     client_session.save()
 
-    response = c.post(
-        reverse("login"), {"credential": cred}
-    )
+    response = c.post(reverse("login"), {"credential": cred})
 
     response = c.get(reverse("security-keys:manage-keys"))
     assert "Your keys" not in response.content.decode("utf-8")

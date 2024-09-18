@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from typing import Any
 
@@ -10,12 +11,13 @@ from django.core.handlers.wsgi import WSGIRequest
 from django.http.response import HttpResponse, HttpResponseRedirect
 from django.template.response import TemplateResponse
 from django.views.generic import FormView
+from webauthn.helpers import base64url_to_bytes
 
 from django_security_keys.ext.two_factor import forms
 from django_security_keys.ext.two_factor.forms import SecurityKeyDeviceValidation
 from django_security_keys.models import SecurityKey, SecurityKeyDevice, UserHandle
-import json
-from webauthn.helpers import base64url_to_bytes
+
+
 class DisableView(two_factor.views.DisableView):
     def dispatch(self, *args: Any, **kwargs: Any) -> HttpResponse:
         self.success_url = "/"
@@ -37,10 +39,7 @@ class LoginView(two_factor.views.LoginView):
         if token_step_data:
             return False
 
-        return (
-            len(SecurityKey.credentials(self.get_user().username))
-            > 0
-        )
+        return len(SecurityKey.credentials(self.get_user().username)) > 0
 
     condition_dict = {
         "backup": two_factor.views.LoginView.has_backup_step,
@@ -74,10 +73,12 @@ class LoginView(two_factor.views.LoginView):
             try:
                 credential = request.POST.get("credential")
                 try:
-                    user_handle = base64url_to_bytes(json.loads(credential)['response']['userHandle']).decode('utf-8')
+                    user_handle = base64url_to_bytes(
+                        json.loads(credential)["response"]["userHandle"]
+                    ).decode("utf-8")
                     username = UserHandle.objects.get(handle=user_handle).user.username
-                except:
-                    raise Exception("Failed login using passkey")
+                except Exception as exc:
+                    raise Exception(f"Failed login using passkey: {exc}")
                 # support passkey login using webauthn
                 if username and credential:
                     user = authenticate(

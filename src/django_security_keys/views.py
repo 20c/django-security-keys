@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import traceback
 from typing import Any
 
 from django.conf import settings
@@ -14,11 +15,12 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import gettext_lazy as _
+from webauthn.helpers import base64url_to_bytes
 
 from django_security_keys.forms import LoginForm, RegisterKeyForm
 from django_security_keys.models import SecurityKey, UserHandle
 from django_security_keys.utils import convert_to_bool
-from webauthn.helpers import base64url_to_bytes
+
 
 def basic_logout(request: WSGIRequest) -> HttpResponseRedirect:
     """
@@ -51,13 +53,14 @@ def basic_login(request: WSGIRequest) -> HttpResponse | HttpResponseRedirect:
             if credential and not (username or password):
                 # credential is set and not set username, password, check username in credential.response.userHandle
                 try:
-                    user_handle = base64url_to_bytes(json.loads(credential)['response']['userHandle']).decode('utf-8')
+                    user_handle = base64url_to_bytes(
+                        json.loads(credential)["response"]["userHandle"]
+                    ).decode("utf-8")
                     username = UserHandle.objects.get(handle=user_handle).user.username
                     user = authenticate(
                         request, username=username, u2f_credential=credential
                     )
-                except:
-                    import traceback
+                except Exception:
                     print(traceback.format_exc())
                     form.add_error("__all__", "Failed login using passkey")
             else:
@@ -121,9 +124,9 @@ def request_authentication(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
     """
 
     username = request.POST.get("username")
-    for_login = convert_to_bool(request.POST.get("for_login",False))
+    for_login = convert_to_bool(request.POST.get("for_login", False))
     if not for_login and not username:
-            return JsonResponse({"non_field_errors": _("No username supplied")}, status=403)
+        return JsonResponse({"non_field_errors": _("No username supplied")}, status=403)
     return JsonResponse(
         json.loads(
             SecurityKey.generate_authentication(

@@ -52,6 +52,7 @@ def invalid_test_credential():
 def test_auth_credential():
     return _test_auth_credential()
 
+
 @pytest.fixture
 def test_auth_credential_passkey():
     return _test_auth_credential_passkey()
@@ -79,7 +80,7 @@ def security_key_passkey():
 
 
 def _test_credential():
-    from django_security_keys.models import SecurityKey, UserHandle
+    from django_security_keys.models import SecurityKey
 
     user = get_user_model().objects.create_user("bob", password="user")
     session = SessionStore()
@@ -169,10 +170,9 @@ def _test_auth_credential_passkey():
         ),
     )
     UserHandle.objects.create(
-        user=user,
-        handle="xyW3XGlevvnRg2XgN7CeBuLKr_YJwmS2i_GM9eLt330"
+        user=user, handle="xyW3XGlevvnRg2XgN7CeBuLKr_YJwmS2i_GM9eLt330"
     )
-    
+
     cred = json.dumps(
         {
             "id": "ZoIKP1JQvKdrYj1bTUPJ2eTUsbLeFkv-X5xJQNr4k6s",
