@@ -33,7 +33,6 @@ from webauthn.helpers.structs import (
 
 
 class UserHandle(models.Model):
-
     """
     Unique identifier used to map users to their webauthn security keys
 
@@ -100,7 +99,6 @@ class UserHandle(models.Model):
 
 
 class SecurityKey(models.Model):
-
     """
     Describes a Webauthn (U2F) SecurityKey be used for passkey
     login or 2FA
