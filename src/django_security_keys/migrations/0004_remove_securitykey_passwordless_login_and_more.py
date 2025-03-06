@@ -13,7 +13,6 @@ def migrate_passwordless_login_to_passkey_login(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("django_security_keys", "0003_date_fields"),
     ]
