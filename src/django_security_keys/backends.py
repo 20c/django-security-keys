@@ -18,7 +18,6 @@ from django_security_keys.models import SecurityKey
 
 
 class PasskeyAuthenticationBackend(ModelBackend):
-
     """
     Passkey authentication through webauthn
     """
