@@ -19,4 +19,5 @@ urlpatterns = [
     path(
         "decommission-form/", views.remove_security_key_form, name="decommission-form"
     ),
+    path("update-security-key/", views.update_security_key, name="update-security-key"),
 ]

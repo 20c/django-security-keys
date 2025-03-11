@@ -295,3 +295,34 @@ def remove_security_key_form(
     remove_security_key(request, **kwargs)
 
     return redirect(reverse("security-keys:manage-keys"))
+
+
+@login_required
+@transaction.atomic
+def update_security_key(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
+    """
+    Update a security key's passkey login status.
+
+    This requires the following POST data:
+    - id (`int`): key id
+    - passkey_login (`bool`): whether to enable passkey login
+
+    Returns a JSON response with the updated key's details
+    """
+    id = request.POST.get("id")
+    passkey_login = convert_to_bool(request.POST.get("passkey_login", False))
+
+    try:
+        sec_key = request.user.webauthn_security_keys.get(pk=id)
+    except SecurityKey.DoesNotExist:
+        return JsonResponse({"non_field_errors": [_("Key not found")]}, status=404)
+
+    sec_key.passkey_login = passkey_login
+    sec_key.save()
+
+    return JsonResponse({
+        "status": "ok", 
+        "id": sec_key.id, 
+        "name": sec_key.name, 
+        "passkey_login": sec_key.passkey_login
+    })
