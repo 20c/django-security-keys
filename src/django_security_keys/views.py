@@ -75,7 +75,9 @@ def basic_login(request: WSGIRequest) -> HttpResponse | HttpResponseRedirect:
                 login(request, user)
                 if request.POST.get("next"):
                     redirect_url = request.POST.get("next")
-                    if url_has_allowed_host_and_scheme(redirect_url):
+                    if redirect_url and url_has_allowed_host_and_scheme(
+                        redirect_url, allowed_hosts={request.get_host()}
+                    ):
                         # false positive from lgtm as url has been passed through
                         # django's validation filter and is safe to redirect
 
@@ -170,9 +172,7 @@ def register_security_key(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
 
 @login_required
 @transaction.atomic
-def register_security_key_form(
-    request: WSGIRequest, **kwargs: Any
-) -> HttpResponseRedirect:
+def register_security_key_form(request: WSGIRequest, **kwargs: Any) -> HttpResponse:
     """
     Register a webauthn security key with a static form approach.
 
@@ -320,9 +320,11 @@ def update_security_key(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
     sec_key.passkey_login = passkey_login
     sec_key.save()
 
-    return JsonResponse({
-        "status": "ok", 
-        "id": sec_key.id, 
-        "name": sec_key.name, 
-        "passkey_login": sec_key.passkey_login
-    })
+    return JsonResponse(
+        {
+            "status": "ok",
+            "id": sec_key.id,
+            "name": sec_key.name,
+            "passkey_login": sec_key.passkey_login,
+        }
+    )

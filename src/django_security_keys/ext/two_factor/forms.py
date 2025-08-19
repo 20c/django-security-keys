@@ -38,7 +38,7 @@ class SecurityKeyDeviceValidation(forms.Form):
                 self.device.user.username, self.request.session, credential
             )
             self.device.authenticated = True
-        except Exception:
-            raise ValidationError(_("Security key authentication failed"))
+        except Exception as exc:
+            raise ValidationError(_("Security key authentication failed")) from exc
 
         return self.cleaned_data

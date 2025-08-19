@@ -8,7 +8,7 @@ import two_factor.views
 from django.contrib.auth import authenticate
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.handlers.wsgi import WSGIRequest
-from django.http.response import HttpResponse, HttpResponseRedirect
+from django.http.response import HttpResponseBase, HttpResponseRedirect
 from django.template.response import TemplateResponse
 from django.views.generic import FormView
 from webauthn.helpers import base64url_to_bytes
@@ -19,7 +19,7 @@ from django_security_keys.models import SecurityKey, SecurityKeyDevice, UserHand
 
 
 class DisableView(two_factor.views.DisableView):
-    def dispatch(self, *args: Any, **kwargs: Any) -> HttpResponse:
+    def dispatch(self, *args: Any, **kwargs: Any) -> HttpResponseBase:
         self.success_url = "/"
         return FormView.dispatch(self, *args, **kwargs)
 
@@ -72,13 +72,15 @@ class LoginView(two_factor.views.LoginView):
         if self.steps.current == "auth":
             try:
                 credential = request.POST.get("credential")
+                if not credential:
+                    raise Exception("No credential provided")
                 try:
                     user_handle = base64url_to_bytes(
                         json.loads(credential)["response"]["userHandle"]
                     ).decode("utf-8")
                     username = UserHandle.objects.get(handle=user_handle).user.username
                 except Exception as exc:
-                    raise Exception(f"Failed login using passkey: {exc}")
+                    raise Exception(f"Failed login using passkey: {exc}") from exc
                 # support passkey login using webauthn
                 if username and credential:
                     user = authenticate(
@@ -99,6 +101,8 @@ class LoginView(two_factor.views.LoginView):
             except Exception as exc:
                 self.passkey_error = f"{exc}"
                 return self.render_goto_step("auth")
+
+        return None
 
     def get_context_data(
         self, form: AuthenticationForm | SecurityKeyDeviceValidation, **kwargs: Any
@@ -121,7 +125,7 @@ class LoginView(two_factor.views.LoginView):
 
         return context
 
-    def get_security_key_device(self) -> SecurityKeyDevice:
+    def get_security_key_device(self) -> SecurityKeyDevice | None:
         """
         Will return a device object representing a webauthn
         choice if the user has any webauthn devices set up
