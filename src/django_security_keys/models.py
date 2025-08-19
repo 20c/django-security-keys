@@ -24,11 +24,15 @@ from django.db import models
 from django.utils.functional import SimpleLazyObject
 from django.utils.translation import gettext_lazy as _
 from django_otp.models import Device, ThrottlingMixin
-from webauthn.helpers import base64url_to_bytes, bytes_to_base64url
+from webauthn.helpers import (
+    base64url_to_bytes,
+    bytes_to_base64url,
+    parse_authentication_credential_json,
+    parse_registration_credential_json,
+)
 from webauthn.helpers.structs import (
-    AuthenticationCredential,
+    AttestationConveyancePreference,
     PublicKeyCredentialDescriptor,
-    RegistrationCredential,
 )
 
 
@@ -41,14 +45,14 @@ class UserHandle(models.Model):
     Ref: https://w3c.github.io/webauthn/#sctn-user-handle-privacy
     """
 
-    user = models.OneToOneField(
+    user: models.OneToOneField[User, User] = models.OneToOneField(
         to=settings.AUTH_USER_MODEL,
         primary_key=True,
         related_name="webauthn_user_handle",
         on_delete=models.CASCADE,
     )
 
-    handle = models.CharField(
+    handle: models.CharField[str, str] = models.CharField(
         max_length=255,
         null=True,
         blank=True,
@@ -112,27 +116,33 @@ class SecurityKey(models.Model):
         verbose_name = _("Webauthn Security Key")
         verbose_name_plural = _("Webauthn Security Keys")
 
-    user = models.ForeignKey(
+    user: models.ForeignKey[User, User] = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         related_name="webauthn_security_keys",
         on_delete=models.CASCADE,
     )
 
-    name = models.CharField(max_length=255, null=True, help_text=_("Security key name"))
-    credential_id = models.CharField(max_length=255, unique=True, db_index=True)
-    credential_public_key = models.TextField()
-    sign_count = models.PositiveIntegerField(default=0)
-    attestation = models.TextField(
+    name: models.CharField[str, str] = models.CharField(
+        max_length=255, null=True, help_text=_("Security key name")
+    )
+    credential_id: models.CharField[str, str] = models.CharField(
+        max_length=255, unique=True, db_index=True
+    )
+    credential_public_key: models.TextField[str, str] = models.TextField()
+    sign_count: models.PositiveIntegerField[int, int] = models.PositiveIntegerField(
+        default=0
+    )
+    attestation: models.TextField[str, str] = models.TextField(
         null=True, blank=True, help_text=_("Attestation information")
     )
 
-    type = models.CharField(max_length=64)
-    passkey_login = models.BooleanField(
+    type: models.CharField[str, str] = models.CharField(max_length=64)
+    passkey_login: models.BooleanField[bool, bool] = models.BooleanField(
         default=False, help_text=_("User has enabled this key for passkey login")
     )
 
-    created = models.DateTimeField(auto_now_add=True)
-    updated = models.DateTimeField(auto_now=True)
+    created: models.DateTimeField = models.DateTimeField(auto_now_add=True)
+    updated: models.DateTimeField = models.DateTimeField(auto_now=True)
 
     @classmethod
     def set_challenge(cls, session: SessionStore, challenge: bytes) -> None:
@@ -198,12 +208,25 @@ class SecurityKey(models.Model):
         existing_credentials = SecurityKey.credentials(
             user.username, ignore_credential_filter=True
         )
+        # Convert string attestation preference to enum
+        attestation_pref = getattr(settings, "WEBAUTHN_ATTESTATION", "none")
+        if isinstance(attestation_pref, str):
+            attestation_map = {
+                "none": AttestationConveyancePreference.NONE,
+                "indirect": AttestationConveyancePreference.INDIRECT,
+                "direct": AttestationConveyancePreference.DIRECT,
+                "enterprise": AttestationConveyancePreference.ENTERPRISE,
+            }
+            attestation_pref = attestation_map.get(
+                attestation_pref, AttestationConveyancePreference.NONE
+            )
+
         opts = webauthn.generate_registration_options(
             rp_id=settings.WEBAUTHN_RP_ID,
             rp_name=settings.WEBAUTHN_RP_NAME,
             user_id=UserHandle.require_for_user(user).handle,
             user_name=user.username,
-            attestation=getattr(settings, "WEBAUTHN_ATTESTATION", "none"),
+            attestation=attestation_pref,
             exclude_credentials=existing_credentials,
         )
 
@@ -241,12 +264,12 @@ class SecurityKey(models.Model):
 
         try:
             challenge = cls.get_challenge(session)
-        except KeyError:
-            raise ValueError(_("Invalid webauthn challenge"))
+        except KeyError as exc:
+            raise ValueError(_("Invalid webauthn challenge")) from exc
 
         # parse credential
 
-        credential = RegistrationCredential.parse_raw(raw_credential)
+        credential = parse_registration_credential_json(raw_credential)
 
         # client_data = parse_client_data_json(credential.response.client_data_json)
 
@@ -378,17 +401,17 @@ class SecurityKey(models.Model):
 
         try:
             challenge = cls.get_challenge(session)
-        except KeyError:
-            raise ValueError(_("Invalid webauthn challenge"))
+        except KeyError as exc:
+            raise ValueError(_("Invalid webauthn challenge")) from exc
 
         # parse credential
 
-        credential = AuthenticationCredential.parse_raw(raw_credential)
+        credential = parse_authentication_credential_json(raw_credential)
 
         try:
             key = cls.objects.get(credential_id=credential.id)
-        except SecurityKey.DoesNotExist:
-            raise ValueError(_("Security key authentication failed"))
+        except SecurityKey.DoesNotExist as exc:
+            raise ValueError(_("Security key authentication failed")) from exc
 
         if for_login and not key.passkey_login:
             raise ValueError(_("Security key not enabled for passkey login"))

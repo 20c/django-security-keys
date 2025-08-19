@@ -37,7 +37,7 @@ def test_credential():
 
 @pytest.fixture
 def invalid_test_credential():
-    user, session, cred = _test_credential
+    user, session, cred = _test_credential()
 
     cred = json.loads(cred)
     cred["response"]["attestationObject"] = cred["response"][

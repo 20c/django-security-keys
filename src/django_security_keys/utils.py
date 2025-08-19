@@ -1,4 +1,4 @@
-def convert_to_bool(data: bool) -> bool:
+def convert_to_bool(data: bool | str | None) -> bool:
     if data is None:
         return False
 

@@ -32,7 +32,7 @@ class PasskeyAuthenticationBackend(ModelBackend):
         # request can be None, for example in test environments
 
         if not request:
-            return
+            return None
 
         credential = kwargs.get("u2f_credential")
 
@@ -41,14 +41,14 @@ class PasskeyAuthenticationBackend(ModelBackend):
         # on username
 
         if not username or not credential:
-            return
+            return None
 
         has_credentials = SecurityKey.credentials(username, for_login=True)
 
         # no credential supplied
 
         if not has_credentials:
-            return
+            return None
 
         # verify passkey login
         try:

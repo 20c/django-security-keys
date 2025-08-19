@@ -15,3 +15,5 @@ build/
 .tox
 .vscode
 coverage.xml
+venv/
+.venv/
