@@ -224,7 +224,7 @@ class SecurityKey(models.Model):
         opts = webauthn.generate_registration_options(
             rp_id=settings.WEBAUTHN_RP_ID,
             rp_name=settings.WEBAUTHN_RP_NAME,
-            user_id=UserHandle.require_for_user(user).handle,
+            user_id=UserHandle.require_for_user(user).handle.encode('utf-8'),
             user_name=user.username,
             attestation=attestation_pref,
             exclude_credentials=existing_credentials,
