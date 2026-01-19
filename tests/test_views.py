@@ -4,6 +4,7 @@ import pytest
 from django.test import Client
 from django.urls import reverse
 
+from django_security_keys.ext.two_factor.forms import PasswordConfirmationForm
 from django_security_keys.models import SecurityKey
 
 
@@ -147,12 +148,42 @@ def test_request_registration(user):
     c = Client()
     c.force_login(user)
 
-    response = c.get(reverse("security-keys:request-registration"))
+    response = c.post(
+        reverse("security-keys:request-registration"), {"password": "user"}
+    )
 
     content = json.loads(response.content.decode("utf-8"))
 
     assert content
     assert content["rp"]["name"] == "dsk sandbox"
+
+
+@pytest.mark.django_db
+def test_request_registration_no_password(user):
+    """Test that request_registration fails without password."""
+    c = Client()
+    c.force_login(user)
+
+    response = c.post(reverse("security-keys:request-registration"))
+
+    assert response.status_code == 400
+    content = json.loads(response.content.decode("utf-8"))
+    assert "non_field_errors" in content
+
+
+@pytest.mark.django_db
+def test_request_registration_wrong_password(user):
+    """Test that request_registration fails with wrong password."""
+    c = Client()
+    c.force_login(user)
+
+    response = c.post(
+        reverse("security-keys:request-registration"), {"password": "wrong_password"}
+    )
+
+    assert response.status_code == 401
+    content = json.loads(response.content.decode("utf-8"))
+    assert "non_field_errors" in content
 
 
 @pytest.mark.django_db
@@ -186,6 +217,7 @@ def test_register_security_key(test_credential):
         {
             "name": "test-key",
             "credential": cred,
+            "password": "user",
         },
     )
 
@@ -196,6 +228,57 @@ def test_register_security_key(test_credential):
 
     assert user.webauthn_security_keys.count() == 1
     assert user.webauthn_security_keys.first().name == "test-key"
+
+
+@pytest.mark.django_db
+def test_register_security_key_no_password(test_credential):
+    """Test that register_security_key fails without password."""
+    user, session, cred = test_credential
+
+    c = Client()
+    c.force_login(user)
+
+    client_session = c.session
+    SecurityKey.set_challenge(client_session, SecurityKey.get_challenge(session))
+    client_session.save()
+
+    response = c.post(
+        reverse("security-keys:register"),
+        {
+            "name": "test-key",
+            "credential": cred,
+        },
+    )
+
+    assert response.status_code == 400
+    content = json.loads(response.content.decode("utf-8"))
+    assert "non_field_errors" in content
+
+
+@pytest.mark.django_db
+def test_register_security_key_wrong_password(test_credential):
+    """Test that register_security_key fails with wrong password."""
+    user, session, cred = test_credential
+
+    c = Client()
+    c.force_login(user)
+
+    client_session = c.session
+    SecurityKey.set_challenge(client_session, SecurityKey.get_challenge(session))
+    client_session.save()
+
+    response = c.post(
+        reverse("security-keys:register"),
+        {
+            "name": "test-key",
+            "credential": cred,
+            "password": "wrong_password",
+        },
+    )
+
+    assert response.status_code == 401
+    content = json.loads(response.content.decode("utf-8"))
+    assert "non_field_errors" in content
 
 
 @pytest.mark.django_db
@@ -214,6 +297,7 @@ def test_register_security_key_form(test_credential):
         {
             "name": "test-key",
             "credential": cred,
+            "password": "user",
         },
     )
 
@@ -346,6 +430,53 @@ def test_remove_security_key_form_requires_2fa(security_key):
 
 
 @pytest.mark.django_db
+def test_password_confirmation_form_valid(user):
+    """Test that PasswordConfirmationForm accepts correct password."""
+
+    # Create a mock request object
+    class MockRequest:
+        pass
+
+    request = MockRequest()
+
+    form = PasswordConfirmationForm(
+        request=request, user=user, data={"password": "user"}
+    )
+    assert form.is_valid(), form.errors
+
+
+@pytest.mark.django_db
+def test_password_confirmation_form_invalid(user):
+    """Test that PasswordConfirmationForm rejects incorrect password."""
+    # Create a mock request object
+    class MockRequest:
+        pass
+
+    request = MockRequest()
+
+    form = PasswordConfirmationForm(
+        request=request, user=user, data={"password": "wrong_password"}
+    )
+    assert not form.is_valid()
+    assert "password" in form.errors
+
+
+@pytest.mark.django_db
+def test_password_confirmation_form_empty(user):
+    """Test that PasswordConfirmationForm rejects empty password."""
+
+    # Create a mock request object
+    class MockRequest:
+        pass
+
+    request = MockRequest()
+
+    form = PasswordConfirmationForm(request=request, user=user, data={"password": ""})
+    assert not form.is_valid()
+    assert "password" in form.errors
+
+
+@pytest.mark.django_db
 def test_request_authentication_ignore_credential_filter(security_key_passkey):
     """Test that ignore_credential_filter returns all keys regardless of passkey_login setting."""
     user, session, key = security_key_passkey
@@ -409,5 +540,3 @@ def test_request_authentication_uses_authenticated_user(security_key):
     content = json.loads(response.content.decode("utf-8"))
     # Should return credentials for the authenticated user
     assert len(content["allowCredentials"]) == 1
-
-

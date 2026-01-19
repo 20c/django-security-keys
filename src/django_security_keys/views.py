@@ -30,6 +30,34 @@ from django_security_keys.utils import convert_to_bool
 logger = logging.getLogger(__name__)
 
 
+def verify_user_password(
+    request: WSGIRequest,
+) -> tuple[str | None, JsonResponse | None]:
+    """
+    Verify the current user's password from POST data.
+
+    Returns:
+        tuple: (password, error_response)
+            - If valid: (password, None)
+            - If missing: (None, JsonResponse with 400)
+            - If incorrect: (None, JsonResponse with 401)
+    """
+    password = request.POST.get("password")
+    if not password:
+        return None, JsonResponse(
+            {"non_field_errors": [_("Password is required.")]},
+            status=400,
+        )
+
+    if not request.user.check_password(password):
+        return None, JsonResponse(
+            {"non_field_errors": [_("Incorrect password. Please try again.")]},
+            status=401,
+        )
+
+    return password, None
+
+
 def basic_logout(request: WSGIRequest) -> HttpResponseRedirect:
     """
     Very basic logout - mostly provided for bootstrap / testing
@@ -124,8 +152,16 @@ def manage_keys(request: WSGIRequest) -> HttpResponse:
 def request_registration(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
     """
     Requests webauthn registration options from the server
-    as a JSON response
+    as a JSON response.
+
+    Requires password verification before returning registration options.
+    POST data:
+    - password (`str`): user's current password for verification
     """
+
+    password, error_response = verify_user_password(request)
+    if error_response:
+        return error_response
 
     return JsonResponse(
         json.loads(SecurityKey.generate_registration(request.user, request.session))
@@ -155,7 +191,7 @@ def request_authentication(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
         username = request.user.username
 
     if not for_login and not username:
-        return JsonResponse({"non_field_errors": _("No username supplied")}, status=403)
+        return JsonResponse({"non_field_errors": _("No username supplied")}, status=400)
     return JsonResponse(
         json.loads(
             SecurityKey.generate_authentication(
@@ -177,9 +213,14 @@ def register_security_key(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
     - credential(`base64`): registration credential
     - name(`str`): key nick name
     - passkey_login (`bool`): allow passkey login
+    - password (`str`): user's current password for verification
 
     Returns a JSON response
     """
+
+    password, error_response = verify_user_password(request)
+    if error_response:
+        return error_response
 
     name = request.POST.get("name", "security-key")
     credential = request.POST.get("credential")
@@ -209,11 +250,12 @@ def register_security_key_form(request: WSGIRequest, **kwargs: Any) -> HttpRespo
     - credential(`base64`): registration credential
     - name(`str`): key nick name
     - passkey_login (`string`): "on" if enabled
+    - password (`str`): user's current password for verification
 
     This will return a html response
     """
 
-    form = RegisterKeyForm(request.POST)
+    form = RegisterKeyForm(request.POST, user=request.user)
 
     if form.is_valid():
         SecurityKey.verify_registration(
@@ -271,7 +313,7 @@ def verify_authentication(request: WSGIRequest) -> JsonResponse:
             exc_info=True,
         )
         return JsonResponse(
-            {"non_field_errors": "Security authentication failed"}, status=403
+            {"non_field_errors": "Security authentication failed"}, status=401
         )
 
     return JsonResponse(
