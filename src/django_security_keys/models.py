@@ -330,12 +330,14 @@ class SecurityKey(models.Model):
         """
 
         qset = cls.objects.filter(user__username=username)
+
         # ignore credential_filter to get all credentials data
         # example: used for excludeCredentials to prevent duplication of keys in 1 account in the same key
         if not ignore_credential_filter:
             # if to be used for passkey login, exclude
             # credentials that are not enabled for that.
             qset = qset.filter(passkey_login=for_login)
+
         return [
             PublicKeyCredentialDescriptor(
                 id=base64url_to_bytes(key.credential_id),
@@ -345,7 +347,11 @@ class SecurityKey(models.Model):
 
     @classmethod
     def generate_authentication(
-        cls, username: User | str, session: SessionStore, for_login: bool = False
+        cls,
+        username: User | str,
+        session: SessionStore,
+        for_login: bool = False,
+        ignore_credential_filter: bool = False,
     ) -> str:
         """
         Generates webauthn authentication options to be passed to
@@ -357,6 +363,8 @@ class SecurityKey(models.Model):
         - session: django request session
         - for_login: (`bool`=False): authentication options for passkey
           login
+        - ignore_credential_filter: (`bool`=False): if True, ignores passkey_login filter
+          and returns all credentials
 
         Returns:
 
@@ -367,7 +375,13 @@ class SecurityKey(models.Model):
         }
         if not for_login:
             options.update(
-                {"allow_credentials": cls.credentials(username, for_login=for_login)}
+                {
+                    "allow_credentials": cls.credentials(
+                        username,
+                        for_login=for_login,
+                        ignore_credential_filter=ignore_credential_filter,
+                    )
+                }
             )
         opts = webauthn.generate_authentication_options(**options)
         cls.set_challenge(session, opts.challenge)
