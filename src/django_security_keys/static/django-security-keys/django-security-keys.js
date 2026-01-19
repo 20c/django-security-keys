@@ -237,10 +237,12 @@ window.SecurityKeys = {
    */
 
 
-  request_authenticate: function(username, for_login, callback, no_credentials, error) {
+  request_authenticate: function(username, for_login, callback, no_credentials, error, ignore_credential_filter) {
     var payload = {username: username};
     if(for_login)
       payload.for_login = 1;
+    if(ignore_credential_filter)
+      payload.ignore_credential_filter = 1;
 
     var url = this.config.url_request_authentication;
 
@@ -323,19 +325,24 @@ window.SecurityKeys = {
    * the webauthn process for the user
    *
    * @method request_registration
+   * @param {String} password user's current password for verification
    * @param {Function} callback called when credentials were successfully obtained
    * @param {Function} error called when webauthn raised an error or user aborted
    *   the process
    */
 
-  request_registration: function(callback, error) {
+  request_registration: function(password, callback, error) {
     // initial step of security key registration
     //
     // request credential registration options from the server
 
     var url = this.config.url_request_registration;
+    var payload = {
+      password: password,
+      csrfmiddlewaretoken: this.config.csrf_token
+    };
 
-    $.get(url, (response)=> {
+    $.post(url, payload, (response) => {
       var challenge_str = SecurityKeys.base64_to_array_buffer(response.challenge);
       response.challenge = challenge_str;
       response.user.id = SecurityKeys.array_buffer_to_uint8(response.user.id);
@@ -367,6 +374,19 @@ window.SecurityKeys = {
         console.error(exc);
       });
 
+    }).fail((xhr) => {
+      // Handle password validation failure
+      // Error message extraction with multiple fallback patterns:
+      // 1. response.non_field_errors[0] - Django form validation errors from views
+      // 2. response.meta.error - peeringdb middleware rate limiting errors
+      // 3. Default fallback message for unexpected error formats
+      if(error) {
+        var response = xhr.responseJSON || {};
+        var message = (response.non_field_errors && response.non_field_errors[0])
+                   || (response.meta && response.meta.error)
+                   || "Password verification failed";
+        error({message: message, status: xhr.status});
+      }
     });
   },
 

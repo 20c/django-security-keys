@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-import traceback
+import logging
 from typing import Any
 
 from django.conf import settings
@@ -15,11 +15,46 @@ from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import gettext_lazy as _
+from django_otp import match_token
 from webauthn.helpers import base64url_to_bytes
+from webauthn.helpers.exceptions import (
+    InvalidAuthenticationResponse,
+    WebAuthnException,
+)
 
 from django_security_keys.forms import LoginForm, RegisterKeyForm
 from django_security_keys.models import SecurityKey, UserHandle
 from django_security_keys.utils import convert_to_bool
+
+logger = logging.getLogger(__name__)
+
+
+def verify_user_password(
+    request: WSGIRequest,
+) -> tuple[str | None, JsonResponse | None]:
+    """
+    Verify the current user's password from POST data.
+
+    Returns:
+        tuple: (password, error_response)
+            - If valid: (password, None)
+            - If missing: (None, JsonResponse with 400)
+            - If incorrect: (None, JsonResponse with 401)
+    """
+    password = request.POST.get("password")
+    if not password:
+        return None, JsonResponse(
+            {"non_field_errors": [_("Password is required.")]},
+            status=400,
+        )
+
+    if not request.user.check_password(password):
+        return None, JsonResponse(
+            {"non_field_errors": [_("Incorrect password. Please try again.")]},
+            status=401,
+        )
+
+    return password, None
 
 
 def basic_logout(request: WSGIRequest) -> HttpResponseRedirect:
@@ -60,8 +95,13 @@ def basic_login(request: WSGIRequest) -> HttpResponse | HttpResponseRedirect:
                     user = authenticate(
                         request, username=username, u2f_credential=credential
                     )
-                except Exception:
-                    print(traceback.format_exc())
+                except (
+                    ValueError,
+                    KeyError,
+                    UserHandle.DoesNotExist,
+                    WebAuthnException,
+                ) as exc:
+                    logger.warning("Passkey login failed: %s", exc, exc_info=True)
                     form.add_error("__all__", "Failed login using passkey")
             else:
                 # no credential, attempt to do a normal login with name and password
@@ -111,8 +151,16 @@ def manage_keys(request: WSGIRequest) -> HttpResponse:
 def request_registration(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
     """
     Requests webauthn registration options from the server
-    as a JSON response
+    as a JSON response.
+
+    Requires password verification before returning registration options.
+    POST data:
+    - password (`str`): user's current password for verification
     """
+
+    password, error_response = verify_user_password(request)
+    if error_response:
+        return error_response
 
     return JsonResponse(
         json.loads(SecurityKey.generate_registration(request.user, request.session))
@@ -127,12 +175,30 @@ def request_authentication(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
 
     username = request.POST.get("username")
     for_login = convert_to_bool(request.POST.get("for_login", False))
+    ignore_credential_filter = convert_to_bool(
+        request.POST.get("ignore_credential_filter", False)
+    )
+
+    # Security: ignore_credential_filter should ONLY be used for 2FA verification, never for login
+    # This prevents bypassing the passkey_login=True requirement during login
+    if for_login and ignore_credential_filter:
+        return JsonResponse(
+            {"non_field_errors": _("Invalid authentication parameters")}, status=400
+        )
+
+    # If user is authenticated and no username provided, use authenticated username
+    if not username and request.user.is_authenticated:
+        username = request.user.username
+
     if not for_login and not username:
-        return JsonResponse({"non_field_errors": _("No username supplied")}, status=403)
+        return JsonResponse({"non_field_errors": _("No username supplied")}, status=400)
     return JsonResponse(
         json.loads(
             SecurityKey.generate_authentication(
-                username, request.session, for_login=for_login
+                username,
+                request.session,
+                for_login=for_login,
+                ignore_credential_filter=ignore_credential_filter,
             )
         )
     )
@@ -149,9 +215,14 @@ def register_security_key(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
     - credential(`base64`): registration credential
     - name(`str`): key nick name
     - passkey_login (`bool`): allow passkey login
+    - password (`str`): user's current password for verification
 
     Returns a JSON response
     """
+
+    password, error_response = verify_user_password(request)
+    if error_response:
+        return error_response
 
     name = request.POST.get("name", "security-key")
     credential = request.POST.get("credential")
@@ -181,11 +252,12 @@ def register_security_key_form(request: WSGIRequest, **kwargs: Any) -> HttpRespo
     - credential(`base64`): registration credential
     - name(`str`): key nick name
     - passkey_login (`string`): "on" if enabled
+    - password (`str`): user's current password for verification
 
     This will return a html response
     """
 
-    form = RegisterKeyForm(request.POST)
+    form = RegisterKeyForm(request.POST, user=request.user)
 
     if form.is_valid():
         SecurityKey.verify_registration(
@@ -235,9 +307,15 @@ def verify_authentication(request: WSGIRequest) -> JsonResponse:
             credential,
             for_login=(request.POST.get("auth_type") == "login"),
         )
-    except Exception:
+    except (InvalidAuthenticationResponse, WebAuthnException, ValueError) as exc:
+        logger.warning(
+            "Security key authentication failed for user %s: %s",
+            username,
+            exc,
+            exc_info=True,
+        )
         return JsonResponse(
-            {"non_field_errors": "Security authentication failed"}, status=403
+            {"non_field_errors": "Security authentication failed"}, status=401
         )
 
     return JsonResponse(
@@ -255,18 +333,58 @@ def remove_security_key(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
     This requires the following POST data:
 
     - id (`int`): key id
+    - credential (`str`, optional): security key credential for verification
+    - otp_token (`str`, optional): TOTP token for verification
 
     The key needs to belong the requesting user.
+    Either credential or otp_token must be provided for verification.
 
     Returns a JSON response
     """
 
     id = request.POST.get("id")
+    credential = request.POST.get("credential")
+    otp_token = request.POST.get("otp_token")
 
     try:
         sec_key = request.user.webauthn_security_keys.get(pk=id)
     except SecurityKey.DoesNotExist:
         return JsonResponse({"non_field_errors": [_("Key not found")]}, status=404)
+
+    # Verify 2FA before allowing deletion
+    verified = False
+
+    # Try TOTP verification first if token is provided
+    if otp_token:
+        device = match_token(request.user, otp_token)
+        if device:
+            verified = True
+
+    # Try security key verification if credential is provided
+    if not verified and credential:
+        try:
+            SecurityKey.verify_authentication(
+                request.user.username, request.session, credential
+            )
+            verified = True
+        except (InvalidAuthenticationResponse, WebAuthnException, ValueError) as exc:
+            logger.warning(
+                "Security key verification failed for user %s during key removal: %s",
+                request.user.username,
+                exc,
+                exc_info=True,
+            )
+
+    if not verified:
+        return JsonResponse(
+            {
+                "non_field_errors": [
+                    _("2FA verification required to remove security key")
+                ]
+            },
+            status=403,
+        )
+
     sec_key.delete()
 
     return JsonResponse(
@@ -279,20 +397,28 @@ def remove_security_key(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
 @login_required
 def remove_security_key_form(
     request: WSGIRequest, **kwargs: Any
-) -> HttpResponseRedirect:
+) -> HttpResponseRedirect | JsonResponse:
     """
     Decommision a security key through a static form approach.
 
     This requires the following POST data:
 
     - id (`int`): key id
+    - credential (`str`, optional): security key credential for verification
+    - otp_token (`str`, optional): TOTP token for verification
 
     The key needs to belong to the requesting user.
+    Either credential or otp_token must be provided for verification.
 
-    Returns a redirect response to manage-keys
+    Returns a redirect response to manage-keys on success,
+    or the error response if 2FA verification fails.
     """
 
-    remove_security_key(request, **kwargs)
+    response = remove_security_key(request, **kwargs)
+
+    # If removal failed (non-200 status), return the error response
+    if response.status_code != 200:
+        return response
 
     return redirect(reverse("security-keys:manage-keys"))
 
