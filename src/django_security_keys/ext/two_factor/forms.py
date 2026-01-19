@@ -91,6 +91,39 @@ class DisableForm(forms.Form):
         )
 
 
+class PasswordConfirmationForm(forms.Form):
+    """
+    Form for confirming user's password before enabling 2FA.
+    This adds a security layer to prevent unauthorized 2FA activation.
+    """
+
+    password = forms.CharField(
+        widget=forms.PasswordInput(attrs={"autocomplete": "current-password"}),
+        label=_("Current Password"),
+    )
+
+    def __init__(
+        self,
+        request: WSGIRequest | None = None,
+        user: Any | None = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        self.request = request
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def clean_password(self):
+        password = self.cleaned_data.get("password")
+        if not password:
+            raise ValidationError(_("Password is required."))
+
+        if not self.user.check_password(password):
+            raise ValidationError(_("Incorrect password. Please try again."))
+
+        return password
+
+
 class SecurityKeyDeviceValidation(forms.Form):
     credential = forms.CharField(widget=forms.HiddenInput())
     credential.widget.attrs.update({"type": "hidden"})

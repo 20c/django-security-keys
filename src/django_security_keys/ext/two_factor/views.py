@@ -20,11 +20,38 @@ from webauthn.helpers.exceptions import WebAuthnException
 from django_security_keys.ext.two_factor import forms
 from django_security_keys.ext.two_factor.forms import (
     DisableForm,
+    PasswordConfirmationForm,
     SecurityKeyDeviceValidation,
 )
 from django_security_keys.models import SecurityKey, SecurityKeyDevice, UserHandle
 
 logger = logging.getLogger(__name__)
+
+
+class SetupView(two_factor.views.SetupView):
+    """
+    Extended SetupView that requires password confirmation before enabling 2FA.
+    This prevents unauthorized 2FA activation by attackers with session access.
+    """
+
+    PASSWORD_STEP = "password"
+
+    form_list = (
+        (PASSWORD_STEP, PasswordConfirmationForm),
+    ) + two_factor.views.SetupView.form_list
+
+    def get_form_kwargs(self, step=None):
+        kwargs = super().get_form_kwargs(step)
+        if step == self.PASSWORD_STEP:
+            kwargs["request"] = self.request
+            kwargs["user"] = self.request.user
+        return kwargs
+
+    def get_context_data(self, form, **kwargs):
+        context = super().get_context_data(form, **kwargs)
+        if self.steps.current == self.PASSWORD_STEP:
+            context["cancel_url"] = "/"
+        return context
 
 
 class DisableView(two_factor.views.DisableView):
