@@ -237,10 +237,12 @@ window.SecurityKeys = {
    */
 
 
-  request_authenticate: function(username, for_login, callback, no_credentials, error) {
+  request_authenticate: function(username, for_login, callback, no_credentials, error, ignore_credential_filter) {
     var payload = {username: username};
     if(for_login)
       payload.for_login = 1;
+    if(ignore_credential_filter)
+      payload.ignore_credential_filter = 1;
 
     var url = this.config.url_request_authentication;
 

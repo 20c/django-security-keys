@@ -1,13 +1,94 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import django.forms as forms
 from django.core.exceptions import ValidationError
 from django.core.handlers.wsgi import WSGIRequest
 from django.utils.translation import gettext as _
+from django_otp import match_token
+from webauthn.helpers.exceptions import (
+    InvalidAuthenticationResponse,
+    WebAuthnException,
+)
 
 from django_security_keys.models import SecurityKey
+
+logger = logging.getLogger(__name__)
+
+
+class DisableForm(forms.Form):
+    """
+    Form for disabling two-factor authentication.
+    Requires either TOTP token, backup token, or security key credential for verification.
+    """
+
+    understand = forms.BooleanField(label=_("Yes, I am sure"))
+    otp_token = forms.CharField(
+        max_length=16,
+        required=False,
+        label=_("Authentication Code"),
+        help_text=_("Enter your TOTP code, or your backup token"),
+    )
+    credential = forms.CharField(widget=forms.HiddenInput(), required=False)
+
+    def __init__(
+        self,
+        request: WSGIRequest | None = None,
+        user: Any | None = None,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
+        self.request = request
+        self.user = user
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        super().clean()
+        cleaned_data = self.cleaned_data
+
+        if not cleaned_data.get("understand"):
+            raise ValidationError(_("You must confirm you understand the risks"))
+
+        # Check if user has provided either TOTP token or security key credential
+        otp_token = cleaned_data.get("otp_token")
+        credential = cleaned_data.get("credential")
+
+        if not otp_token and not credential:
+            raise ValidationError(
+                _(
+                    "You must verify with your authentication code, backup token, or security key"
+                )
+            )
+
+        # Try TOTP verification first if token is provided
+        if otp_token:
+            device = match_token(self.user, otp_token)
+            if device:
+                return cleaned_data
+
+        # Try security key verification if credential is provided
+        if credential:
+            try:
+                SecurityKey.verify_authentication(
+                    self.user.username, self.request.session, credential
+                )
+                return cleaned_data
+            except (InvalidAuthenticationResponse, WebAuthnException, ValueError) as exc:
+                logger.warning(
+                    "Security key verification failed for user %s during 2FA disable: %s",
+                    self.user.username,
+                    exc,
+                    exc_info=True,
+                )
+
+        # If reach here, verification failed
+        raise ValidationError(
+            _(
+                "Invalid authentication code, backup token, or security key verification failed"
+            )
+        )
 
 
 class SecurityKeyDeviceValidation(forms.Form):
@@ -38,7 +119,13 @@ class SecurityKeyDeviceValidation(forms.Form):
                 self.device.user.username, self.request.session, credential
             )
             self.device.authenticated = True
-        except Exception as exc:
+        except (InvalidAuthenticationResponse, WebAuthnException, ValueError) as exc:
+            logger.warning(
+                "Security key authentication failed for user %s: %s",
+                self.device.user.username,
+                exc,
+                exc_info=True,
+            )
             raise ValidationError(_("Security key authentication failed")) from exc
 
         return self.cleaned_data
