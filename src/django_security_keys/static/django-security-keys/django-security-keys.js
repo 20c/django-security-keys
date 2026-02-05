@@ -32,9 +32,11 @@ window.SecurityKeys = {
     this.config = config;
 
     await this.init_passkey_autofill();
+    this.init_passkey_button();
 
   },
   init_passkey_autofill : async function() {
+    var self = this;
     var login_form = $(".login-form form")
 
     if (
@@ -43,17 +45,24 @@ window.SecurityKeys = {
     ) {
       const available = await PublicKeyCredential.isConditionalMediationAvailable();
       var url = this.config.url_request_authentication;
-      payload = {for_login:true}
+      var payload = {for_login:true}
       payload.csrfmiddlewaretoken = this.config.csrf_token;
 
       if (available){
         $.post(url, payload, (response) => {
 
           response.challenge = base64url.decode(response.challenge);
-    
-          var assertion = navigator.credentials.get({publicKey: response,mediation: "conditional",});
+
+          // Store the abort controller so we can cancel the autofill request
+          self.autofillAbortController = new AbortController();
+          var assertion = navigator.credentials.get({
+            publicKey: response,
+            mediation: "conditional",
+            signal: self.autofillAbortController.signal
+          });
           assertion.catch((exc) => {
-            if(error)
+            // Ignore AbortError - it's expected when button is clicked
+            if(exc.name !== "AbortError" && error)
               error(exc);
           });
           assertion.then((PublicKeyCredential) => {
@@ -79,6 +88,69 @@ window.SecurityKeys = {
       }
     }
   },
+
+  /**
+   * Initialize explicit passkey login button
+   *
+   * This adds a click handler to the passkey login button that
+   * triggers the WebAuthn authentication flow
+   *
+   * @method init_passkey_button
+   */
+  init_passkey_button : function() {
+    var self = this;
+    var login_form = $(".login-form form");
+    var passkey_button = $("#passkey-login-button");
+
+    if (!passkey_button.length) {
+      return;
+    }
+
+    passkey_button.click(function(ev) {
+      ev.preventDefault();
+
+      // Abort any pending autofill request first
+      if (self.autofillAbortController) {
+        self.autofillAbortController.abort();
+        self.autofillAbortController = null;
+
+        // Give the browser a moment to release the WebAuthn lock
+        setTimeout(function() {
+          self.request_authenticate(
+            null,
+            true,
+            (payload) => {
+              login_form.append($('<input type="hidden" name="credential">').val(payload.credential));
+              login_form.submit();
+            },
+            () => {
+              alert(gettext("No passkey credentials found. Please use username and password to login."));
+            },
+            (exc) => {
+              // Error or user canceled
+            }
+          );
+        }, 10);
+      } else {
+        // No autofill active, proceed immediately
+        self.request_authenticate(
+          null,
+          true,
+          (payload) => {
+            login_form.append($('<input type="hidden" name="credential">').val(payload.credential));
+            login_form.submit();
+          },
+          () => {
+            alert(gettext("No passkey credentials found. Please use username and password to login."));
+          },
+          (exc) => {
+            // Error or user canceled
+          }
+        );
+      }
+    });
+  },
+
   /**
    * Convert array-buffer to uint8 array
    *
@@ -237,8 +309,10 @@ window.SecurityKeys = {
    */
 
 
-  request_authenticate: function(username, for_login, callback, no_credentials, error, ignore_credential_filter) {
-    var payload = {username: username};
+  request_authenticate: function(username, for_login, callback, no_credentials, error) {
+    var payload = {};
+    if(username)
+      payload.username = username;
     if(for_login)
       payload.for_login = 1;
     if(ignore_credential_filter)
@@ -268,6 +342,13 @@ window.SecurityKeys = {
           error(exc);
       });
       assertion.then((PublicKeyCredential) => {
+        const decoder = new TextDecoder();
+
+        // Handle userHandle - it can be null for 2FA security keys
+        var userHandle = null;
+        if (PublicKeyCredential.response.userHandle) {
+          userHandle = decoder.decode(PublicKeyCredential.response.userHandle);
+        }
 
         var credentials = {
           id: PublicKeyCredential.id,
@@ -276,7 +357,7 @@ window.SecurityKeys = {
             authenticatorData: base64url.encode(PublicKeyCredential.response.authenticatorData),
             clientDataJSON: base64url.encode(PublicKeyCredential.response.clientDataJSON),
             signature: base64url.encode(PublicKeyCredential.response.signature),
-            userHandle: base64url.encode(PublicKeyCredential.response.userHandle)
+            userHandle: userHandle
           },
           type: PublicKeyCredential.type
         }
