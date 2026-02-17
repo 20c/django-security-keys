@@ -75,7 +75,11 @@ class DisableForm(forms.Form):
                     self.user.username, self.request.session, credential
                 )
                 return cleaned_data
-            except (InvalidAuthenticationResponse, WebAuthnException, ValueError) as exc:
+            except (
+                InvalidAuthenticationResponse,
+                WebAuthnException,
+                ValueError,
+            ) as exc:
                 logger.warning(
                     "Security key verification failed for user %s during 2FA disable: %s",
                     self.user.username,

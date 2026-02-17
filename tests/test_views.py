@@ -448,6 +448,7 @@ def test_password_confirmation_form_valid(user):
 @pytest.mark.django_db
 def test_password_confirmation_form_invalid(user):
     """Test that PasswordConfirmationForm rejects incorrect password."""
+
     # Create a mock request object
     class MockRequest:
         pass

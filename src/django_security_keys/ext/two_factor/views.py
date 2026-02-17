@@ -165,7 +165,12 @@ class LoginView(two_factor.views.LoginView):
                         json.loads(credential)["response"]["userHandle"]
                     ).decode("utf-8")
                     username = UserHandle.objects.get(handle=user_handle).user.username
-                except (ValueError, KeyError, UserHandle.DoesNotExist, WebAuthnException) as exc:
+                except (
+                    ValueError,
+                    KeyError,
+                    UserHandle.DoesNotExist,
+                    WebAuthnException,
+                ) as exc:
                     logger.warning("Failed to parse passkey credential: %s", exc)
                     raise ValueError(f"Failed login using passkey: {exc}") from exc
                 # support passkey login using webauthn
@@ -174,7 +179,9 @@ class LoginView(two_factor.views.LoginView):
                         request, username=username, u2f_credential=credential
                     )
                     if not user:
-                        logger.warning("Passkey authentication failed for username: %s", username)
+                        logger.warning(
+                            "Passkey authentication failed for username: %s", username
+                        )
                         raise ValueError("Failed login using passkey")
                     self.storage.reset()
                     self.storage.authenticated_user = user

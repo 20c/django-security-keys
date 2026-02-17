@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import traceback
 from typing import Any
 
 from django.conf import settings
@@ -12,11 +11,11 @@ from django.core.handlers.wsgi import WSGIRequest
 from django.db import transaction
 from django.http import JsonResponse
 from django.http.response import HttpResponse, HttpResponseRedirect
-from django_otp import match_token
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.translation import gettext_lazy as _
+from django_otp import match_token
 from webauthn.helpers import base64url_to_bytes
 from webauthn.helpers.exceptions import (
     InvalidAuthenticationResponse,
@@ -176,14 +175,15 @@ def request_authentication(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
 
     username = request.POST.get("username")
     for_login = convert_to_bool(request.POST.get("for_login", False))
-    ignore_credential_filter = convert_to_bool(request.POST.get("ignore_credential_filter", False))
+    ignore_credential_filter = convert_to_bool(
+        request.POST.get("ignore_credential_filter", False)
+    )
 
     # Security: ignore_credential_filter should ONLY be used for 2FA verification, never for login
     # This prevents bypassing the passkey_login=True requirement during login
     if for_login and ignore_credential_filter:
         return JsonResponse(
-            {"non_field_errors": _("Invalid authentication parameters")},
-            status=400
+            {"non_field_errors": _("Invalid authentication parameters")}, status=400
         )
 
     # If user is authenticated and no username provided, use authenticated username
@@ -195,8 +195,10 @@ def request_authentication(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
     return JsonResponse(
         json.loads(
             SecurityKey.generate_authentication(
-                username, request.session, for_login=for_login,
-                ignore_credential_filter=ignore_credential_filter
+                username,
+                request.session,
+                for_login=for_login,
+                ignore_credential_filter=ignore_credential_filter,
             )
         )
     )
@@ -375,7 +377,11 @@ def remove_security_key(request: WSGIRequest, **kwargs: Any) -> JsonResponse:
 
     if not verified:
         return JsonResponse(
-            {"non_field_errors": [_("2FA verification required to remove security key")]},
+            {
+                "non_field_errors": [
+                    _("2FA verification required to remove security key")
+                ]
+            },
             status=403,
         )
 
