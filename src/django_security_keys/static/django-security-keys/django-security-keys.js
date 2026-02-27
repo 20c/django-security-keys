@@ -309,7 +309,7 @@ window.SecurityKeys = {
    */
 
 
-  request_authenticate: function(username, for_login, callback, no_credentials, error) {
+  request_authenticate: function(username, for_login, callback, no_credentials, error, ignore_credential_filter) {
     var payload = {};
     if(username)
       payload.username = username;
