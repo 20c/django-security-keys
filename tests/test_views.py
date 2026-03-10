@@ -1,10 +1,12 @@
 import json
+from unittest.mock import MagicMock, PropertyMock
 
 import pytest
 from django.test import Client
 from django.urls import reverse
 
 from django_security_keys.ext.two_factor.forms import PasswordConfirmationForm
+from django_security_keys.ext.two_factor.views import LoginView
 from django_security_keys.models import SecurityKey
 
 
@@ -541,3 +543,49 @@ def test_request_authentication_uses_authenticated_user(security_key):
     content = json.loads(response.content.decode("utf-8"))
     # Should return credentials for the authenticated user
     assert len(content["allowCredentials"]) == 1
+
+
+# --- Tests for login wizard step conditions ---
+
+
+def _make_mock_login_view(user, storage_data=None, step_data=None):
+    """
+    Create a mock LoginView instance with controlled storage
+    for directly testing condition methods.
+    """
+    view = LoginView.__new__(LoginView)
+
+    # Mock storage
+    view.storage = MagicMock()
+    view.storage.data = storage_data or {}
+
+    def get_step_data(step):
+        if step_data and step in step_data:
+            return step_data[step]
+        return None
+
+    view.storage.get_step_data = get_step_data
+    view.storage.validated_step_data = {}
+
+    # Mock get_user to return our user
+    view.get_user = lambda: user
+
+    # Mock remember_agent (from django-two-factor)
+    type(view).remember_agent = PropertyMock(return_value=False)
+
+    return view
+
+
+@pytest.mark.django_db
+def test_has_security_key_step_false_after_backup(security_key):
+    """
+    Test that has_security_key_step returns False when backup step data exists.
+    Regression test for GitHub issue #1912: backup codes should skip U2F.
+    """
+    user, session, key = security_key
+    view = _make_mock_login_view(
+        user,
+        step_data={"backup": {"backup-otp_token": "used_token"}},
+    )
+
+    assert view.has_security_key_step() is False
