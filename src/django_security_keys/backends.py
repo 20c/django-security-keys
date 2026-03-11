@@ -1,5 +1,5 @@
 """
-This backend allows password-less authentication using
+This backend allows passkey authentication using
 a security key device.
 
 It is important that it comes before any other authentication
@@ -17,10 +17,9 @@ from django.core.handlers.wsgi import WSGIRequest
 from django_security_keys.models import SecurityKey
 
 
-class PasswordlessAuthenticationBackend(ModelBackend):
-
+class PasskeyAuthenticationBackend(ModelBackend):
     """
-    Password-less authentication through webauthn
+    Passkey authentication through webauthn
     """
 
     def authenticate(
@@ -33,39 +32,29 @@ class PasswordlessAuthenticationBackend(ModelBackend):
         # request can be None, for example in test environments
 
         if not request:
-            return
-
-        # clean up last used passwordless key
-
-        try:
-            del request.session["webauthn_passwordless"]
-        except KeyError:
-            pass
+            return None
 
         credential = kwargs.get("u2f_credential")
 
-        # no username supplied, abort password-less login silently
+        # no username supplied, abort passkey login silently
         # normal login process will raise required-field error
         # on username
 
         if not username or not credential:
-            return
+            return None
 
-        has_credentials = SecurityKey.credentials(
-            username, request.session, for_login=True
-        )
+        has_credentials = SecurityKey.credentials(username, for_login=True)
 
         # no credential supplied
 
         if not has_credentials:
-            return
+            return None
 
-        # verify password-less login
+        # verify passkey login
         try:
             key = SecurityKey.verify_authentication(
                 username, request.session, credential, for_login=True
             )
-            request.session["webauthn_passwordless"] = key.id
             return key.user
         except Exception:
             raise

@@ -1,0 +1,11 @@
+def convert_to_bool(data: bool | str | None) -> bool:
+    if data is None:
+        return False
+
+    if isinstance(data, bool):
+        return data
+
+    if isinstance(data, str):
+        return data.lower() in ("true", "1", "yes", "on")
+
+    return False

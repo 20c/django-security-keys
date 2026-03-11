@@ -1,70 +1,102 @@
-[tool.poetry]
+[project]
 name = "django-security-keys"
 version = "1.1.0"
 description = "Django webauthn security key integration"
 readme = "README.md"
-repository = "https://github.com/fullctl/django-security-keys"
-authors = [ "20C <code@20c.com>",]
-license = "Apache-2"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "20C", email = "code@20c.com" }
+]
 classifiers = [
-  "Topic :: Software Development", 
-  "Development Status :: 5 - Production/Stable",
-  "License :: OSI Approved :: Apache Software License", 
-  "Programming Language :: Python :: 3.8", 
-  "Programming Language :: Python :: 3.9",
-  "Programming Language :: Python :: 3.10",
-  "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development", 
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: Apache Software License", 
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "webauthn>=1.0.0",
+    "django-two-factor-auth>=1.13.1",
+    "phonenumbers>=8.12.47",
 ]
 
-packages = [
-    { include = "django_security_keys", from = "src" },
+[project.optional-dependencies]
+dev = [
+    # testing
+    "pytest>=6.0.1",
+    "pytest-django>=3.8.0",
+    "pytest-cov",
+    "pytest-pythonpath",
+    "tox>=3.24",
+    "tox-gh-actions>=2.9.1",
+    
+    # linting - modernized to use ruff
+    "ruff>=0.1.0",
+    "mypy>=0.950",
+    "django-stubs>=5.0.0",
+    "pre-commit>=2.13",
+    
+    # ctl
+    "ctl>=1.0.0",
+    "jinja2>=3.1.2",
+    "tmpl>=1.0.0",
+    "twine>=3.3.0",
+    
+    # docs
+    "markdown-include>=0.5",
+    "mkdocs>=1.2.3",
+    "pymdgen>=1.0.0",
 ]
 
-[tool.poetry.dependencies]
-python = "^3.8"
-webauthn = "^1"
+[project.urls]
+Repository = "https://github.com/fullctl/django-security-keys"
 
-# requirements for 2FA
-django-two-factor-auth = "^1.13.1"
-phonenumbers = "^8.12.47"
-
-[tool.poetry.dev-dependencies]
-# testing
-pytest = ">=6.0.1"
-pytest-django = ">=3.8.0"
-pytest-cov = "*"
-pytest-pythonpath = "*"
-tox = ">=3.24"
-tox-gh-actions = ">=2.9.1"
-
-# linting
-black = { version = ">=20", allow-prereleases = true }
-isort = "^5.7.0"
-flake8 = "^3.8.4"
-mypy = ">=0.950"
-pre-commit = "^2.13"
-pyupgrade = "^2.19.4"
-
-# ctl
-ctl = "^1"
-jinja2 = "^3.1.2"
-tmpl = "^1"
-twine = "^3.3.0"
-
-# docs
-markdown-include = ">=0.5"
-mkdocs = "^1.2.3"
-pymdgen = "^1.0.0"
-
-
-[tool.poetry.plugins."markdown.extensions"]
+[project.entry-points."markdown.extensions"]
 pymdgen = "pymdgen.md:Extension"
 
 [build-system]
-requires = [ "poetry>=0.12",]
-build-backend = "poetry.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.isort]
-profile = "black"
-multi_line_output = 3
+[tool.hatch.build.targets.wheel]
+packages = ["src/django_security_keys"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+extend-exclude = ["migrations"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by ruff format
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["django_security_keys"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true  # Third-party packages without stubs
+disable_error_code = [
+    "union-attr",     # Django user types (User | SimpleLazyObject | AnonymousUser)
+    "arg-type",       # Django view arguments (AbstractBaseUser vs User, SessionBase vs SessionStore)
+    "attr-defined",   # Django models have dynamic attributes like .id that mypy doesn't see
+    "override",       # Django backend signature requirements vs mypy expectations
+    "has-type",       # Django internal type resolution (device caching, etc.)
+]
 

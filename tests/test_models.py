@@ -55,16 +55,16 @@ def test_security_key_verify_registration(test_credential):
 def test_security_key_credentials(security_key):
     user, session, key = security_key
 
-    assert len(SecurityKey.credentials(user.username, session)) == 1
-    assert len(SecurityKey.credentials(user.username, session, for_login=True)) == 0
+    assert len(SecurityKey.credentials(user.username)) == 1
+    assert len(SecurityKey.credentials(user.username, for_login=True)) == 0
 
 
 @pytest.mark.django_db
-def test_security_key_credentials_passwordless(security_key_passwordless):
-    user, session, key = security_key_passwordless
+def test_security_key_credentials_passwordless(security_key_passkey):
+    user, session, key = security_key_passkey
 
-    assert len(SecurityKey.credentials(user.username, session)) == 1
-    assert len(SecurityKey.credentials(user.username, session, for_login=True)) == 1
+    assert len(SecurityKey.credentials(user.username)) == 0
+    assert len(SecurityKey.credentials(user.username, for_login=True)) == 1
 
 
 @pytest.mark.django_db
@@ -102,7 +102,7 @@ def test_security_key_verify_authentication_passwordless_success(test_auth_crede
     user, session, cred = test_auth_credential
 
     key = user.webauthn_security_keys.first()
-    key.passwordless_login = True
+    key.passkey_login = True
     key.save()
 
     assert SecurityKey.verify_authentication(

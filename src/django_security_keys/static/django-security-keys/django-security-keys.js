@@ -22,10 +22,133 @@ window.SecurityKeys = {
 
     this.config = config;
 
-    this.init_passwordless_login();
     this.init_two_factor();
     this.init_key_registration();
 
+  },
+
+  init_autofill : async function(config) {
+
+    this.config = config;
+
+    await this.init_passkey_autofill();
+    this.init_passkey_button();
+
+  },
+  init_passkey_autofill : async function() {
+    var self = this;
+    var login_form = $(".login-form form")
+
+    if (
+      typeof window.PublicKeyCredential !== 'undefined'
+      && typeof window.PublicKeyCredential.isConditionalMediationAvailable === 'function'
+    ) {
+      const available = await PublicKeyCredential.isConditionalMediationAvailable();
+      var url = this.config.url_request_authentication;
+      var payload = {for_login:true}
+      payload.csrfmiddlewaretoken = this.config.csrf_token;
+
+      if (available){
+        $.post(url, payload, (response) => {
+
+          response.challenge = base64url.decode(response.challenge);
+
+          // Store the abort controller so we can cancel the autofill request
+          self.autofillAbortController = new AbortController();
+          var assertion = navigator.credentials.get({
+            publicKey: response,
+            mediation: "conditional",
+            signal: self.autofillAbortController.signal
+          });
+          assertion.catch((exc) => {
+            // Ignore AbortError - it's expected when button is clicked
+            if(exc.name !== "AbortError" && error)
+              error(exc);
+          });
+          assertion.then((PublicKeyCredential) => {
+            const decoder = new TextDecoder();
+            var credentials = {
+              id: PublicKeyCredential.id,
+              rawId: base64url.encode(PublicKeyCredential.rawId),
+              response: {
+                authenticatorData: base64url.encode(PublicKeyCredential.response.authenticatorData),
+                clientDataJSON: base64url.encode(PublicKeyCredential.response.clientDataJSON),
+                signature: base64url.encode(PublicKeyCredential.response.signature),
+                userHandle: decoder.decode(PublicKeyCredential.response.userHandle)
+              },
+              type: PublicKeyCredential.type
+            }
+    
+            payload.credential = JSON.stringify(credentials);
+            login_form.append($('<input type="hidden" name="credential">').val(payload.credential));
+            login_form.submit();
+          });
+    
+        });
+      }
+    }
+  },
+
+  /**
+   * Initialize explicit passkey login button
+   *
+   * This adds a click handler to the passkey login button that
+   * triggers the WebAuthn authentication flow
+   *
+   * @method init_passkey_button
+   */
+  init_passkey_button : function() {
+    var self = this;
+    var login_form = $(".login-form form");
+    var passkey_button = $("#passkey-login-button");
+
+    if (!passkey_button.length) {
+      return;
+    }
+
+    passkey_button.click(function(ev) {
+      ev.preventDefault();
+
+      // Abort any pending autofill request first
+      if (self.autofillAbortController) {
+        self.autofillAbortController.abort();
+        self.autofillAbortController = null;
+
+        // Give the browser a moment to release the WebAuthn lock
+        setTimeout(function() {
+          self.request_authenticate(
+            null,
+            true,
+            (payload) => {
+              login_form.append($('<input type="hidden" name="credential">').val(payload.credential));
+              login_form.submit();
+            },
+            () => {
+              alert(gettext("No passkey credentials found. Please use username and password to login."));
+            },
+            (exc) => {
+              // Error or user canceled
+            }
+          );
+        }, 10);
+      } else {
+        // No autofill active, proceed immediately
+        self.request_authenticate(
+          null,
+          true,
+          (payload) => {
+            login_form.append($('<input type="hidden" name="credential">').val(payload.credential));
+            login_form.submit();
+          },
+          () => {
+            alert(gettext("No passkey credentials found. Please use username and password to login."));
+          },
+          (exc) => {
+            // Error or user canceled
+          }
+        );
+      }
+    });
   },
 
   /**
@@ -62,72 +185,6 @@ window.SecurityKeys = {
 
   base64_to_array_buffer : function(b) {
     return base64url.decode(b);
-  },
-
-  /**
-   * Initializes password-less login support for django-login
-   * form
-   *
-   * This is called automatically by `init()`
-   *
-   * @method init_passwordless_login()
-   */
-
-  init_passwordless_login : function() {
-    var login_form = $(".login-form form")
-    var login_step = login_form.find('[name="login_view-current_step"]');
-
-    // normal or unknown django login (no django-two-factor wizard found)
-    var normal_login = (login_form.length && !login_step.length);
-
-    // django-two-factor login (wizard found and step is at "auth")
-    var two_factor_login = (login_step.val() == "auth");
-
-    if(normal_login || two_factor_login) {
-      var button_next = login_form.find('button[type="submit"]').filter('.btn-login,.btn-primary');
-      var fn_submit = function(ev) {
-        var password = login_form.find("#id_auth-password, #id_password").val();
-        var username= login_form.find("#id_auth-username, #id_username").val();
-
-        if(password == "" && username != "") {
-
-          // prevent default form submit since we need to wait
-          // for credentials.
-          ev.preventDefault();
-
-          window.SecurityKeys.request_authenticate(
-            username,
-            true,
-
-            (payload) => {
-
-              // auth assertion successful, attach credentials
-
-              login_form.append($('<input type="hidden" name="credential">').val(payload.credential));
-              login_form.submit();
-
-            },
-
-            () => {
-
-              console.log("No credentials for user");
-
-              // no registered credentials
-
-              login_form.submit();
-
-            }
-          );
-        }
-      };
-
-      button_next.click(fn_submit);
-      login_form.find('input').on('keydown', (ev) => {
-        if(ev.which==13) {
-          fn_submit(ev);
-        }
-      });
-    }
   },
 
   /**
@@ -252,10 +309,14 @@ window.SecurityKeys = {
    */
 
 
-  request_authenticate: function(username, for_login, callback, no_credentials, error) {
-    var payload = {username: username};
+  request_authenticate: function(username, for_login, callback, no_credentials, error, ignore_credential_filter) {
+    var payload = {};
+    if(username)
+      payload.username = username;
     if(for_login)
       payload.for_login = 1;
+    if(ignore_credential_filter)
+      payload.ignore_credential_filter = 1;
 
     var url = this.config.url_request_authentication;
 
@@ -269,7 +330,7 @@ window.SecurityKeys = {
         this.id = base64url.decode(this.id);
       });
 
-      if(!response.allowCredentials.length) {
+      if(!for_login && !response.allowCredentials.length) {
         if(no_credentials)
           return no_credentials();
         return;
@@ -281,6 +342,13 @@ window.SecurityKeys = {
           error(exc);
       });
       assertion.then((PublicKeyCredential) => {
+        const decoder = new TextDecoder();
+
+        // Handle userHandle - it can be null for 2FA security keys
+        var userHandle = null;
+        if (PublicKeyCredential.response.userHandle) {
+          userHandle = decoder.decode(PublicKeyCredential.response.userHandle);
+        }
 
         var credentials = {
           id: PublicKeyCredential.id,
@@ -289,7 +357,7 @@ window.SecurityKeys = {
             authenticatorData: base64url.encode(PublicKeyCredential.response.authenticatorData),
             clientDataJSON: base64url.encode(PublicKeyCredential.response.clientDataJSON),
             signature: base64url.encode(PublicKeyCredential.response.signature),
-            userHandle: base64url.encode(PublicKeyCredential.response.userHandle)
+            userHandle: userHandle
           },
           type: PublicKeyCredential.type
         }
@@ -303,28 +371,65 @@ window.SecurityKeys = {
   },
 
   /**
+   * Converts a Base64 encoded string to an ArrayBuffer.
+   *
+   * This function takes a Base64 encoded string as input and converts it to an ArrayBuffer. 
+   * It first decodes the Base64 string into a binary string, then creates an ArrayBuffer 
+   * of the appropriate size and populates it with the decoded bytes.
+   *
+   * Note:
+   * - The function replaces '_' with '/' and '-' with '+' in the input string to handle URL-safe Base64 encoding.
+   * - If the input string is `null`, the function returns `null`.
+   *
+   * @param {string} b64_encoded_string - The Base64 encoded string to be converted.
+   * @returns {ArrayBuffer|null} The resulting ArrayBuffer containing the decoded bytes, 
+   * or `null` if the input is `null`.
+   */
+  b64str2ab : function(b64_encoded_string) {
+      if (b64_encoded_string == null) {
+          return null;
+      };
+
+      let string = atob(b64_encoded_string.replace(/_/g, '/').replace(/-/g, '+')),
+          buf = new ArrayBuffer(string.length),
+          bufView = new Uint8Array(buf);
+      for (var i = 0, strLen = string.length; i < strLen; i++) {
+          bufView[i] = string.charCodeAt(i);
+      }
+      return buf;
+  },
+
+  /**
    * Security key registration process
    *
    * Will request registration options from the server and then start
    * the webauthn process for the user
    *
    * @method request_registration
+   * @param {String} password user's current password for verification
    * @param {Function} callback called when credentials were successfully obtained
    * @param {Function} error called when webauthn raised an error or user aborted
    *   the process
    */
 
-  request_registration: function(callback, error) {
+  request_registration: function(password, callback, error) {
     // initial step of security key registration
     //
     // request credential registration options from the server
 
     var url = this.config.url_request_registration;
+    var payload = {
+      password: password,
+      csrfmiddlewaretoken: this.config.csrf_token
+    };
 
-    $.get(url, (response)=> {
+    $.post(url, payload, (response) => {
       var challenge_str = SecurityKeys.base64_to_array_buffer(response.challenge);
       response.challenge = challenge_str;
       response.user.id = SecurityKeys.array_buffer_to_uint8(response.user.id);
+      response.excludeCredentials.forEach((credential) => {
+          credential.id = SecurityKeys.b64str2ab(credential.id);
+      });
       navigator.credentials.create(
         {publicKey: response}
       ).then((credential) => {
@@ -350,6 +455,19 @@ window.SecurityKeys = {
         console.error(exc);
       });
 
+    }).fail((xhr) => {
+      // Handle password validation failure
+      // Error message extraction with multiple fallback patterns:
+      // 1. response.non_field_errors[0] - Django form validation errors from views
+      // 2. response.meta.error - peeringdb middleware rate limiting errors
+      // 3. Default fallback message for unexpected error formats
+      if(error) {
+        var response = xhr.responseJSON || {};
+        var message = (response.non_field_errors && response.non_field_errors[0])
+                   || (response.meta && response.meta.error)
+                   || "Password verification failed";
+        error({message: message, status: xhr.status});
+      }
     });
   },
 
