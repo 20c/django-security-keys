@@ -125,6 +125,11 @@ class LoginView(two_factor.views.LoginView):
         if token_step_data:
             return False
 
+        # if a backup token was used we dont need to ask for the security key
+        backup_step_data = self.storage.get_step_data("backup")
+        if backup_step_data:
+            return False
+
         return len(SecurityKey.credentials(self.get_user().username)) > 0
 
     condition_dict = {

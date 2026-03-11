@@ -1,6 +1,7 @@
 Unreleased:
   added: []
-  fixed: []
+  fixed:
+  - having to provide U2F key to use backup token, defeating the purpose of the backup token
   changed: []
   deprecated: []
   removed: []
