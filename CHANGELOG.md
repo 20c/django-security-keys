@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+### Fixed
+- having to provide U2F key to use backup token, defeating the purpose of the backup token
 
 ## 1.1.0
 ### Added
