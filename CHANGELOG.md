@@ -4,7 +4,7 @@
 ## Unreleased
 
 ### Added
-- allow disabling either passwords or TOTP for users with passkeys (#1810)
+- allow disabling either passwords or TOTP for users with passkeys
 
 ### Fixed
 - having to provide U2F key to use backup token, defeating the purpose of the backup token

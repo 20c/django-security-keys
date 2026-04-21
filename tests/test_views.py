@@ -659,7 +659,9 @@ def _make_login_view_with_flags(user, storage_data=None, **flags):
     Using a fresh subclass (not setattr on LoginView) avoids class-level mutation
     that would leak flag values across tests.
     """
-    overrides = {name: property(lambda self, v=value: v) for name, value in flags.items()}
+    overrides = {
+        name: property(lambda self, v=value: v) for name, value in flags.items()
+    }
     SubView = type("_TestLoginView", (LoginView,), overrides)
 
     view = SubView.__new__(SubView)
@@ -1022,7 +1024,9 @@ def test_has_security_key_step_passkey_mfa_required_token_completed(security_key
         storage_data={"passkey_authenticated": True},
         require_passkey_mfa=True,
     )
-    view.storage.get_step_data = lambda step: {"token-otp_token": "123456"} if step == "token" else None
+    view.storage.get_step_data = (
+        lambda step: {"token-otp_token": "123456"} if step == "token" else None
+    )
 
     assert view.has_security_key_step() is False
 
@@ -1040,7 +1044,9 @@ def test_has_security_key_step_passkey_mfa_required_backup_completed(security_ke
         storage_data={"passkey_authenticated": True},
         require_passkey_mfa=True,
     )
-    view.storage.get_step_data = lambda step: {"backup-otp_token": "abc123"} if step == "backup" else None
+    view.storage.get_step_data = (
+        lambda step: {"backup-otp_token": "abc123"} if step == "backup" else None
+    )
 
     assert view.has_security_key_step() is False
 

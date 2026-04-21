@@ -336,9 +336,9 @@ class LoginView(two_factor.views.LoginView):
                     # Record which credential was used so that the security-key
                     # MFA step can exclude it from the allowed candidates and
                     # reject it if submitted directly (POST-tampering defense).
-                    self.storage.data["passkey_credential_id"] = json.loads(
-                        credential
-                    )["id"]
+                    self.storage.data["passkey_credential_id"] = json.loads(credential)[
+                        "id"
+                    ]
                     form = self.get_form(
                         data=self.request.POST, files=self.request.FILES
                     )
