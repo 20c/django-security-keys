@@ -6,11 +6,15 @@ import time
 from typing import Any
 
 import two_factor.views
+from django.conf import settings as dj_settings
 from django.contrib.auth import authenticate
+from django.contrib.auth import login as auth_login
 from django.contrib.auth.forms import AuthenticationForm
 from django.core.handlers.wsgi import WSGIRequest
 from django.http.response import HttpResponseBase, HttpResponseRedirect
+from django.shortcuts import redirect
 from django.template.response import TemplateResponse
+from django.utils.translation import gettext_lazy as _
 from django.views.generic import FormView
 from django_otp import devices_for_user
 from django_otp.plugins.otp_email.models import EmailDevice
@@ -115,26 +119,163 @@ class LoginView(two_factor.views.LoginView):
         ("security-key", forms.SecurityKeyDeviceValidation),
     )
 
+    @property
+    def disable_password_auth(self) -> bool:
+        """If True, done() blocks login unless the user authenticated via passkey."""
+        return False
+
+    @property
+    def disable_totp(self) -> bool:
+        """If True, skip the token and backup-code steps on the non-passkey path."""
+        return False
+
+    @property
+    def require_passkey_mfa(self) -> bool:
+        """If True, require MFA even after a successful passkey authentication."""
+        return False
+
+    def has_token_step(self) -> bool:
+        if self.storage.data.get("passkey_authenticated"):
+            # Passkey auth normally satisfies 2FA, but can still require MFA on top.
+            # If MFA is required but TOTP is disallowed, skip the token step
+            # (the user cannot be asked for a method their org has disabled).
+            if self.require_passkey_mfa and not self.disable_totp:
+                return two_factor.views.LoginView.has_token_step(self)
+            return False
+
+        # Non-passkey path: honour TOTP disable flag.
+        if self.disable_totp:
+            return False
+
+        return two_factor.views.LoginView.has_token_step(self)
+
+    def has_backup_step(self) -> bool:
+        if self.storage.data.get("passkey_authenticated"):
+            # Same logic as has_token_step.
+            if self.require_passkey_mfa and not self.disable_totp:
+                return two_factor.views.LoginView.has_backup_step(self)
+            return False
+
+        # Non-passkey path: backup codes are tied to TOTP, disable together.
+        if self.disable_totp:
+            return False
+
+        return two_factor.views.LoginView.has_backup_step(self)
+
+    def get_passkey_required_error(self) -> str:
+        """
+        Return the error message stored in the session when password login is
+        blocked by disable_password_auth.
+
+        Override in subclasses to provide application-specific wording.
+        Must return a plain str (not a lazy translation proxy) because the
+        session backend serializes session data with json.dumps().
+        """
+        return str(_("Passkey authentication is required to log in."))
+
+    def get_mfa_incomplete_redirect(self):
+        """
+        Called when require_passkey_mfa is True but MFA was not completed
+        (either because the user has no TOTP device, or because disable_totp
+        prevented the step from being shown).
+
+        Return a URL string to redirect the user (e.g. to MFA setup), or None
+        to let the login proceed anyway.
+
+        Override in subclasses to enforce the requirement. The default returns
+        None for backwards compatibility.
+        """
+        return None
+
+    def done(self, form_list, **kwargs):
+        if self.disable_password_auth and not self.storage.data.get(
+            "passkey_authenticated"
+        ):
+            self.request.session["passkey_required_error"] = (
+                self.get_passkey_required_error()
+            )
+            self.storage.reset()
+            return redirect(dj_settings.LOGIN_URL)
+
+        if self.storage.data.get("passkey_authenticated") and self.require_passkey_mfa:
+            done_forms = self.get_done_form_list()
+            mfa_completed = (
+                "token" in done_forms
+                or "backup" in done_forms
+                or "security-key" in done_forms
+            )
+            if not mfa_completed:
+                url = self.get_mfa_incomplete_redirect()
+                if url is not None:
+                    user = self.get_user()
+                    self.storage.reset()
+                    # Log the user in so they can access the redirect target
+                    # (e.g. the MFA setup page), which requires authentication.
+                    auth_login(self.request, user)
+                    return redirect(url)
+
+        # Password path: if TOTP is disabled by policy and the user has no
+        # security-key step to satisfy it, they would slip through without any
+        # MFA challenge. Give the hook a chance to redirect them to setup.
+        if not self.storage.data.get("passkey_authenticated") and self.disable_totp:
+            done_forms = self.get_done_form_list()
+            if "security-key" not in done_forms:
+                url = self.get_mfa_incomplete_redirect()
+                if url is not None:
+                    user = self.get_user()
+                    self.storage.reset()
+                    auth_login(self.request, user)
+                    return redirect(url)
+
+        return super().done(form_list, **kwargs)
+
     def has_security_key_step(self) -> bool:
         if not self.get_user():
             return False
 
-        # if a valid token was provided in the token step we dont need to
-        # ask for additional 2FA via the security key
-        token_step_data = self.storage.get_step_data("token")
-        if token_step_data:
-            return False
+        if self.storage.data.get("passkey_authenticated"):
+            # Passkey auth normally satisfies 2FA on its own.
+            # When require_passkey_mfa is set, the user must still complete an
+            # additional MFA step — a second (non-passkey) security key can
+            # satisfy this requirement.
+            if not self.require_passkey_mfa:
+                return False
+            # TOTP or backup code already satisfied the MFA requirement.
+            if self.storage.get_step_data("token"):
+                return False
+            if self.storage.get_step_data("backup"):
+                return False
+            # credentials() with for_login=False returns only 2FA keys
+            # (passkey_login=False), so the passkey-login key is already
+            # excluded by the queryset filter. Explicitly filter out the
+            # credential_id that was used for passkey login as a second
+            # safety layer against edge cases.
+            creds = SecurityKey.credentials(self.get_user().username)
+            used_id = self.storage.data.get("passkey_credential_id")
+            if used_id:
+                try:
+                    used_id_bytes = base64url_to_bytes(used_id)
+                    creds = [c for c in creds if c.id != used_id_bytes]
+                except Exception:
+                    logger.warning(
+                        "Failed to decode passkey_credential_id %r for user %s; "
+                        "skipping explicit credential exclusion",
+                        used_id,
+                        self.get_user().username,
+                    )
+            return len(creds) > 0
 
-        # if a backup token was used we dont need to ask for the security key
-        backup_step_data = self.storage.get_step_data("backup")
-        if backup_step_data:
+        # Non-passkey path: skip if TOTP or backup already completed.
+        if self.storage.get_step_data("token"):
+            return False
+        if self.storage.get_step_data("backup"):
             return False
 
         return len(SecurityKey.credentials(self.get_user().username)) > 0
 
     condition_dict = {
-        "backup": two_factor.views.LoginView.has_backup_step,
-        "token": two_factor.views.LoginView.has_token_step,
+        "backup": has_backup_step,
+        "token": has_token_step,
         "security-key": has_security_key_step,
     }
 
@@ -191,6 +332,13 @@ class LoginView(two_factor.views.LoginView):
                     self.storage.reset()
                     self.storage.authenticated_user = user
                     self.storage.data["authentication_time"] = int(time.time())
+                    self.storage.data["passkey_authenticated"] = True
+                    # Record which credential was used so that the security-key
+                    # MFA step can exclude it from the allowed candidates and
+                    # reject it if submitted directly (POST-tampering defense).
+                    self.storage.data["passkey_credential_id"] = json.loads(
+                        credential
+                    )["id"]
                     form = self.get_form(
                         data=self.request.POST, files=self.request.FILES
                     )

@@ -1,11 +1,16 @@
 import json
-from unittest.mock import MagicMock, PropertyMock
+from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
-from django.test import Client
+from django.test import Client, RequestFactory
 from django.urls import reverse
+from django_otp.plugins.otp_static.models import StaticDevice, StaticToken
+from django_otp.plugins.otp_totp.models import TOTPDevice
 
-from django_security_keys.ext.two_factor.forms import PasswordConfirmationForm
+from django_security_keys.ext.two_factor.forms import (
+    PasswordConfirmationForm,
+    SecurityKeyDeviceValidation,
+)
 from django_security_keys.ext.two_factor.views import LoginView
 from django_security_keys.models import SecurityKey
 
@@ -589,3 +594,542 @@ def test_has_security_key_step_false_after_backup(security_key):
     )
 
     assert view.has_security_key_step() is False
+
+
+@pytest.mark.django_db
+def test_has_security_key_step_false_after_passkey(security_key):
+    """
+    Test that has_security_key_step returns False when passkey_authenticated
+    flag is set.
+    """
+    user, session, key = security_key
+    view = _make_mock_login_view(
+        user,
+        storage_data={"passkey_authenticated": True},
+    )
+
+    assert view.has_security_key_step() is False
+
+
+@pytest.mark.django_db
+def test_has_token_step_false_after_passkey(security_key):
+    """
+    Test that has_token_step returns False when passkey_authenticated flag is set.
+    """
+    user, session, key = security_key
+
+    # User needs a TOTP device for has_token_step to normally return True
+    TOTPDevice.objects.create(user=user, confirmed=True)
+
+    view = _make_mock_login_view(
+        user,
+        storage_data={"passkey_authenticated": True},
+    )
+
+    assert view.has_token_step() is False
+
+
+@pytest.mark.django_db
+def test_has_backup_step_false_after_passkey(security_key):
+    """
+    Test that has_backup_step returns False when passkey_authenticated flag is set.
+    """
+    user, session, key = security_key
+
+    # User needs devices for has_backup_step to normally return True
+    TOTPDevice.objects.create(user=user, confirmed=True)
+    static_device = StaticDevice.objects.create(user=user, confirmed=True)
+    StaticToken.objects.create(device=static_device, token="backup123")
+
+    view = _make_mock_login_view(
+        user,
+        storage_data={"passkey_authenticated": True},
+    )
+
+    assert view.has_backup_step() is False
+
+
+# --- Tests for passkey policy flag properties ---
+
+
+def _make_login_view_with_flags(user, storage_data=None, **flags):
+    """
+    Like _make_mock_login_view but creates a one-off subclass with the given
+    flag properties so policy enforcement can be tested without a real org model.
+    Using a fresh subclass (not setattr on LoginView) avoids class-level mutation
+    that would leak flag values across tests.
+    """
+    overrides = {name: property(lambda self, v=value: v) for name, value in flags.items()}
+    SubView = type("_TestLoginView", (LoginView,), overrides)
+
+    view = SubView.__new__(SubView)
+    view.storage = MagicMock()
+    view.storage.data = storage_data or {}
+    view.storage.get_step_data = lambda step: None
+    view.storage.validated_step_data = {}
+    view.get_user = lambda: user
+    type(view).remember_agent = PropertyMock(return_value=False)
+    return view
+
+
+@pytest.mark.django_db
+def test_has_token_step_disable_totp_non_passkey(security_key):
+    """
+    has_token_step returns False when disable_totp is set and the user is on
+    the non-passkey login path.
+    """
+    user, session, key = security_key
+    TOTPDevice.objects.create(user=user, confirmed=True)
+
+    view = _make_login_view_with_flags(user, storage_data={}, disable_totp=True)
+
+    assert view.has_token_step() is False
+
+
+@pytest.mark.django_db
+def test_has_token_step_require_passkey_mfa_after_passkey(security_key):
+    """
+    has_token_step returns True when require_passkey_mfa is set and the user
+    authenticated via passkey.
+    """
+    user, session, key = security_key
+    TOTPDevice.objects.create(user=user, name="default", confirmed=True)
+
+    view = _make_login_view_with_flags(
+        user,
+        storage_data={"passkey_authenticated": True},
+        require_passkey_mfa=True,
+    )
+
+    assert view.has_token_step() is True
+
+
+@pytest.mark.django_db
+def test_has_token_step_passkey_no_mfa_required(security_key):
+    """
+    has_token_step returns False after passkey auth when require_passkey_mfa is not set.
+    """
+    user, session, key = security_key
+    TOTPDevice.objects.create(user=user, confirmed=True)
+
+    view = _make_login_view_with_flags(
+        user, storage_data={"passkey_authenticated": True}
+    )
+
+    assert view.has_token_step() is False
+
+
+@pytest.mark.django_db
+def test_has_backup_step_disable_totp_non_passkey(security_key):
+    """
+    has_backup_step returns False when disable_totp is set and the user is on
+    the non-passkey path (backup codes are tied to TOTP).
+    """
+    user, session, key = security_key
+    TOTPDevice.objects.create(user=user, confirmed=True)
+    static_device = StaticDevice.objects.create(user=user, confirmed=True)
+    StaticToken.objects.create(device=static_device, token="backup123")
+
+    view = _make_login_view_with_flags(user, storage_data={}, disable_totp=True)
+
+    assert view.has_backup_step() is False
+
+
+@pytest.mark.django_db
+def test_has_backup_step_require_passkey_mfa_after_passkey(security_key):
+    """
+    has_backup_step returns True when require_passkey_mfa is set and the user
+    authenticated via passkey.
+    """
+    user, session, key = security_key
+    TOTPDevice.objects.create(user=user, name="default", confirmed=True)
+    static_device = StaticDevice.objects.create(user=user, confirmed=True)
+    StaticToken.objects.create(device=static_device, token="backup123")
+
+    view = _make_login_view_with_flags(
+        user,
+        storage_data={"passkey_authenticated": True},
+        require_passkey_mfa=True,
+    )
+
+    assert view.has_backup_step() is True
+
+
+@pytest.mark.django_db
+def test_has_token_step_disable_totp_overrides_require_passkey_mfa(security_key):
+    """
+    When disable_totp is set, has_token_step returns False on the passkey path
+    even if require_passkey_mfa is also set. A user cannot be asked for a TOTP
+    method their org has disallowed.
+    """
+    user, session, key = security_key
+    TOTPDevice.objects.create(user=user, name="default", confirmed=True)
+
+    view = _make_login_view_with_flags(
+        user,
+        storage_data={"passkey_authenticated": True},
+        require_passkey_mfa=True,
+        disable_totp=True,
+    )
+
+    assert view.has_token_step() is False
+
+
+@pytest.mark.django_db
+def test_has_backup_step_disable_totp_overrides_require_passkey_mfa(security_key):
+    """
+    When disable_totp is set, has_backup_step returns False on the passkey path
+    even if require_passkey_mfa is also set.
+    """
+    user, session, key = security_key
+    TOTPDevice.objects.create(user=user, name="default", confirmed=True)
+    static_device = StaticDevice.objects.create(user=user, confirmed=True)
+    StaticToken.objects.create(device=static_device, token="backup123")
+
+    view = _make_login_view_with_flags(
+        user,
+        storage_data={"passkey_authenticated": True},
+        require_passkey_mfa=True,
+        disable_totp=True,
+    )
+
+    assert view.has_backup_step() is False
+
+
+@pytest.mark.django_db
+def test_done_redirects_when_mfa_incomplete_and_hook_returns_url(security_key):
+    """
+    done() redirects to the URL returned by get_mfa_incomplete_redirect()
+    when require_passkey_mfa is True but MFA was not completed.
+    """
+    user, session, key = security_key
+
+    view = _make_login_view_with_flags(
+        user,
+        storage_data={"passkey_authenticated": True},
+        require_passkey_mfa=True,
+    )
+    view.get_done_form_list = lambda: {}
+    view.get_mfa_incomplete_redirect = lambda: "/mfa/setup/"
+    view.storage.reset = MagicMock()
+
+    http_request = RequestFactory().get("/")
+    http_request.session = {}
+    view.request = http_request
+
+    with patch(
+        "django_security_keys.ext.two_factor.views.auth_login"
+    ) as mock_auth_login:
+        response = view.done([], **{})
+
+    assert response.status_code == 302
+    assert response["Location"] == "/mfa/setup/"
+    view.storage.reset.assert_called_once()
+    mock_auth_login.assert_called_once_with(http_request, user)
+
+
+@pytest.mark.django_db
+def test_done_allows_through_when_mfa_incomplete_and_hook_returns_none(security_key):
+    """
+    done() proceeds normally when get_mfa_incomplete_redirect() returns None
+    (default — backwards compatible).
+    """
+    user, session, key = security_key
+
+    view = _make_login_view_with_flags(
+        user,
+        storage_data={"passkey_authenticated": True},
+        require_passkey_mfa=True,
+    )
+    view.get_done_form_list = lambda: {}
+    view.get_mfa_incomplete_redirect = lambda: None
+    view.storage.reset = MagicMock()
+
+    try:
+        view.done([], **{})
+    except Exception:
+        pass  # super().done() will fail without full wizard state
+
+    view.storage.reset.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_done_skips_redirect_when_security_key_mfa_completed(security_key):
+    """
+    After tapping a second security key as MFA, the user should be logged in
+    normally — not redirected to MFA setup. The "security-key" step completing
+    counts as satisfying the MFA requirement.
+    """
+    user, session, key = security_key
+
+    view = _make_login_view_with_flags(
+        user,
+        storage_data={"passkey_authenticated": True},
+        require_passkey_mfa=True,
+    )
+    view.get_done_form_list = lambda: {"security-key": None}
+    view.get_mfa_incomplete_redirect = MagicMock(return_value="/mfa/setup/")
+    view.storage.reset = MagicMock()
+
+    try:
+        view.done([], **{})
+    except Exception:
+        pass  # super().done() will fail without full wizard state
+
+    # MFA was satisfied via security key — must NOT redirect to setup
+    view.get_mfa_incomplete_redirect.assert_not_called()
+    view.storage.reset.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_done_password_path_calls_mfa_redirect_when_totp_disabled(security_key):
+    """
+    When TOTP is disabled by policy and a user logged in via password without
+    completing a security-key step, done() should call get_mfa_incomplete_redirect()
+    to give the app a chance to redirect them to enroll a different MFA method.
+    """
+    user, session, key = security_key
+
+    view = _make_login_view_with_flags(
+        user,
+        storage_data={},  # no passkey_authenticated
+        disable_totp=True,
+    )
+    view.get_done_form_list = lambda: {}  # no steps completed
+    view.get_mfa_incomplete_redirect = MagicMock(return_value="/mfa/setup/")
+    view.storage.reset = MagicMock()
+
+    http_request = RequestFactory().get("/")
+    http_request.session = {}
+    view.request = http_request
+
+    with patch(
+        "django_security_keys.ext.two_factor.views.auth_login"
+    ) as mock_auth_login:
+        response = view.done([], **{})
+
+    assert response.status_code == 302
+    assert response["Location"] == "/mfa/setup/"
+    view.get_mfa_incomplete_redirect.assert_called_once()
+    view.storage.reset.assert_called_once()
+    mock_auth_login.assert_called_once_with(http_request, user)
+
+
+@pytest.mark.django_db
+def test_done_password_path_no_redirect_when_mfa_hook_returns_none(security_key):
+    """
+    When get_mfa_incomplete_redirect() returns None (user has no TOTP device to
+    block), done() should proceed normally without redirecting.
+    """
+    user, session, key = security_key
+
+    view = _make_login_view_with_flags(
+        user,
+        storage_data={},
+        disable_totp=True,
+    )
+    view.get_done_form_list = lambda: {}
+    view.get_mfa_incomplete_redirect = MagicMock(return_value=None)
+    view.storage.reset = MagicMock()
+
+    try:
+        view.done([], **{})
+    except Exception:
+        pass  # super().done() will fail without full wizard state
+
+    view.storage.reset.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_done_password_path_no_redirect_when_security_key_completed(security_key):
+    """
+    When disable_totp is True but the user satisfied MFA via a security key,
+    done() should NOT redirect them — security-key counts as completed MFA.
+    """
+    user, session, key = security_key
+
+    view = _make_login_view_with_flags(
+        user,
+        storage_data={},
+        disable_totp=True,
+    )
+    view.get_done_form_list = lambda: {"security-key": None}
+    view.get_mfa_incomplete_redirect = MagicMock(return_value="/mfa/setup/")
+    view.storage.reset = MagicMock()
+
+    try:
+        view.done([], **{})
+    except Exception:
+        pass  # super().done() will fail without full wizard state
+
+    view.get_mfa_incomplete_redirect.assert_not_called()
+    view.storage.reset.assert_not_called()
+
+
+# --- Tests for passkey + security-key MFA step ---
+
+
+@pytest.mark.django_db
+def test_has_security_key_step_passkey_mfa_required_has_2fa_key(security_key):
+    """
+    has_security_key_step returns True after passkey auth when require_passkey_mfa
+    is set and the user has a 2FA security key (passkey_login=False).
+    A second security key can satisfy the MFA requirement.
+    """
+    user, session, key = security_key
+    # key fixture creates passkey_login=False (2FA key) — present in DB.
+
+    view = _make_login_view_with_flags(
+        user,
+        storage_data={"passkey_authenticated": True},
+        require_passkey_mfa=True,
+    )
+
+    assert view.has_security_key_step() is True
+
+
+@pytest.mark.django_db
+def test_has_security_key_step_passkey_mfa_required_no_2fa_key(security_key_passkey):
+    """
+    has_security_key_step returns False after passkey auth when require_passkey_mfa
+    is set but the user has no 2FA security key — only the passkey key used to log in.
+    credentials(for_login=False) returns nothing, so there is nothing to challenge.
+    """
+    user, session, key = security_key_passkey
+    # security_key_passkey fixture creates passkey_login=True only — no 2FA key.
+
+    view = _make_login_view_with_flags(
+        user,
+        storage_data={"passkey_authenticated": True},
+        require_passkey_mfa=True,
+    )
+
+    assert view.has_security_key_step() is False
+
+
+@pytest.mark.django_db
+def test_has_security_key_step_passkey_mfa_required_token_completed(security_key):
+    """
+    has_security_key_step returns False after passkey auth when require_passkey_mfa
+    is set but the token (TOTP) step was already completed.
+    TOTP already satisfied the MFA requirement — no need for security key step.
+    """
+    user, session, key = security_key
+    TOTPDevice.objects.create(user=user, name="default", confirmed=True)
+
+    view = _make_login_view_with_flags(
+        user,
+        storage_data={"passkey_authenticated": True},
+        require_passkey_mfa=True,
+    )
+    view.storage.get_step_data = lambda step: {"token-otp_token": "123456"} if step == "token" else None
+
+    assert view.has_security_key_step() is False
+
+
+@pytest.mark.django_db
+def test_has_security_key_step_passkey_mfa_required_backup_completed(security_key):
+    """
+    has_security_key_step returns False after passkey auth when require_passkey_mfa
+    is set but the backup token step was already completed.
+    """
+    user, session, key = security_key
+
+    view = _make_login_view_with_flags(
+        user,
+        storage_data={"passkey_authenticated": True},
+        require_passkey_mfa=True,
+    )
+    view.storage.get_step_data = lambda step: {"backup-otp_token": "abc123"} if step == "backup" else None
+
+    assert view.has_security_key_step() is False
+
+
+@pytest.mark.django_db
+def test_has_security_key_step_passkey_no_mfa_required_still_false(security_key):
+    """
+    has_security_key_step returns False after passkey auth when require_passkey_mfa
+    is not set, even if the user has a 2FA security key.
+    Passkey alone satisfies auth — no additional step needed.
+    """
+    user, session, key = security_key
+
+    view = _make_login_view_with_flags(
+        user,
+        storage_data={"passkey_authenticated": True},
+        require_passkey_mfa=False,
+    )
+
+    assert view.has_security_key_step() is False
+
+
+# --- Tests for POST-tampering defense ---
+
+
+@pytest.mark.django_db
+def test_security_key_form_rejects_passkey_credential(security_key):
+    """
+    SecurityKeyDeviceValidation.clean() raises ValidationError when the submitted
+    credential id matches the passkey_credential_id that was used for login.
+    Prevents a user from satisfying the security-key MFA step with the same
+    credential they used to authenticate via passkey.
+    """
+    user, session, key = security_key
+
+    passkey_credential_id = "abc123credentialid"
+    credential_json = json.dumps({"id": passkey_credential_id, "response": {}})
+
+    device = MagicMock()
+    device.authenticated = False
+    device.user = user
+
+    request = RequestFactory().post("/")
+    request.session = {}
+
+    form = SecurityKeyDeviceValidation(
+        request=request,
+        device=device,
+        passkey_credential_id=passkey_credential_id,
+        data={"credential": credential_json},
+    )
+
+    assert not form.is_valid()
+    assert any(
+        "passkey" in str(e).lower() or "second factor" in str(e).lower()
+        for e in form.errors.get("__all__", [])
+    )
+
+
+@pytest.mark.django_db
+def test_security_key_form_allows_different_credential(security_key):
+    """
+    SecurityKeyDeviceValidation.clean() does not raise the tamper error when the
+    submitted credential id is different from the passkey_credential_id.
+    The form proceeds to verify_authentication normally (which may fail for other
+    reasons in a unit test — we only assert the tamper check does not fire).
+    """
+    user, session, key = security_key
+
+    passkey_credential_id = "abc123credentialid"
+    different_credential_json = json.dumps({"id": "different456", "response": {}})
+
+    device = MagicMock()
+    device.authenticated = False
+    device.user = user
+
+    request = RequestFactory().post("/")
+    request.session = {}
+
+    form = SecurityKeyDeviceValidation(
+        request=request,
+        device=device,
+        passkey_credential_id=passkey_credential_id,
+        data={"credential": different_credential_json},
+    )
+
+    # is_valid() will fail (no real WebAuthn session), but the error should be
+    # the WebAuthn verification error, not the tamper check.
+    form.is_valid()
+    all_errors = " ".join(str(e) for e in form.errors.get("__all__", []))
+    assert "second factor" not in all_errors.lower()
+    assert "passkey used for login" not in all_errors.lower()
