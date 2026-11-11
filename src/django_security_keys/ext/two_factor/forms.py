@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -136,11 +137,15 @@ class SecurityKeyDeviceValidation(forms.Form):
         self,
         request: WSGIRequest | None = None,
         device: Any | None = None,
+        passkey_credential_id: str | None = None,
         *args: Any,
         **kwargs: Any,
     ) -> None:
         self.request = request
         self.device = device
+        # ID of the credential that was used for passkey login in this session.
+        # Used to reject POST-tampered submissions of the same credential as 2FA.
+        self.passkey_credential_id = passkey_credential_id
         super().__init__(*args, **kwargs)
 
     def clean(self):
@@ -150,6 +155,18 @@ class SecurityKeyDeviceValidation(forms.Form):
             return self.cleaned_data
 
         credential = self.cleaned_data["credential"]
+
+        # Reject the credential that was already used for passkey authentication.
+        # The WebAuthn challenge mismatch would catch it too, but this is explicit.
+        if self.passkey_credential_id:
+            try:
+                submitted_id = json.loads(credential).get("id")
+            except (ValueError, KeyError):
+                submitted_id = None
+            if submitted_id and submitted_id == self.passkey_credential_id:
+                raise ValidationError(
+                    _("The passkey used for login cannot be used as a second factor.")
+                )
 
         try:
             SecurityKey.verify_authentication(
